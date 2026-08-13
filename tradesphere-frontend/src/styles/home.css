@@ -1,0 +1,717 @@
+.home-page {
+    min-height: 100vh;
+
+    background:
+        radial-gradient(
+            circle at 80% 20%,
+            rgba(37, 99, 235, 0.08),
+            transparent 28%
+        ),
+        radial-gradient(
+            circle at 20% 80%,
+            rgba(15, 23, 42, 0.05),
+            transparent 30%
+        ),
+        #f8fafc;
+
+    color: #0f172a;
+}
+
+
+/* NAVBAR */
+
+.home-navbar {
+    height: 76px;
+
+    max-width: 1400px;
+
+    margin: auto;
+
+    padding: 0 40px;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: space-between;
+
+    border-bottom: 1px solid #e5e7eb;
+}
+
+
+.home-logo {
+    display: flex;
+
+    align-items: center;
+
+    gap: 10px;
+}
+
+
+.home-logo span {
+    width: 38px;
+    height: 38px;
+
+    display: flex;
+
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 11px;
+
+    background: #0f172a;
+
+    color: white;
+
+    font-size: 12px;
+
+    font-weight: 800;
+}
+
+
+.home-logo strong {
+    font-size: 18px;
+
+    letter-spacing: -0.03em;
+}
+
+
+.nav-links {
+    display: flex;
+
+    gap: 32px;
+}
+
+
+.nav-links a {
+    color: #64748b;
+
+    font-size: 13px;
+
+    font-weight: 500;
+
+    transition: 0.25s;
+}
+
+
+.nav-links a:hover {
+    color: #0f172a;
+}
+
+
+.nav-actions {
+    display: flex;
+
+    align-items: center;
+
+    gap: 10px;
+}
+
+
+.nav-login,
+.nav-register {
+    padding: 10px 17px;
+
+    border-radius: 10px;
+
+    font-size: 13px;
+
+    font-weight: 700;
+}
+
+
+.nav-login {
+    color: #334155;
+}
+
+
+.nav-register {
+    background: #0f172a;
+
+    color: white;
+
+    box-shadow:
+        0 8px 25px rgba(15, 23, 42, 0.15);
+}
+
+
+/* HERO */
+
+.hero-section {
+    min-height: 670px;
+
+    max-width: 1400px;
+
+    margin: auto;
+
+    padding: 80px 60px;
+
+    display: grid;
+
+    grid-template-columns: 1fr 0.9fr;
+
+    align-items: center;
+
+    gap: 60px;
+}
+
+
+.hero-content {
+    max-width: 680px;
+}
+
+
+.hero-badge {
+    display: inline-flex;
+
+    align-items: center;
+
+    gap: 8px;
+
+    padding: 9px 13px;
+
+    border: 1px solid #e2e8f0;
+
+    border-radius: 999px;
+
+    background: rgba(255,255,255,0.8);
+
+    color: #475569;
+
+    font-size: 11px;
+
+    font-weight: 700;
+}
+
+
+.hero-badge svg {
+    color: #2563eb;
+}
+
+
+.hero-content h1 {
+    margin-top: 25px;
+
+    font-size: clamp(48px, 6vw, 78px);
+
+    line-height: 0.98;
+
+    letter-spacing: -0.065em;
+}
+
+
+.hero-content h1 span {
+    display: block;
+
+    color: #2563eb;
+}
+
+
+.hero-content > p {
+    max-width: 580px;
+
+    margin-top: 26px;
+
+    color: #64748b;
+
+    font-size: 17px;
+
+    line-height: 1.75;
+}
+
+
+/* SEARCH */
+
+.hero-search {
+    height: 62px;
+
+    max-width: 620px;
+
+    margin-top: 32px;
+
+    padding: 6px 7px 6px 18px;
+
+    display: flex;
+
+    align-items: center;
+
+    gap: 12px;
+
+    border: 1px solid #e2e8f0;
+
+    border-radius: 16px;
+
+    background: white;
+
+    box-shadow:
+        0 15px 50px rgba(15,23,42,0.08);
+}
+
+
+.hero-search svg {
+    color: #94a3b8;
+}
+
+
+.hero-search input {
+    flex: 1;
+
+    border: none;
+
+    outline: none;
+
+    color: #0f172a;
+
+    font-size: 13px;
+}
+
+
+.hero-search button {
+    height: 48px;
+
+    padding: 0 18px;
+
+    display: flex;
+
+    align-items: center;
+
+    gap: 8px;
+
+    border: none;
+
+    border-radius: 11px;
+
+    background: #0f172a;
+
+    color: white;
+
+    font-size: 12px;
+
+    font-weight: 700;
+}
+
+
+/* HERO BUTTONS */
+
+.hero-actions {
+    display: flex;
+
+    gap: 12px;
+
+    margin-top: 22px;
+}
+
+
+.hero-primary,
+.hero-secondary {
+    padding: 14px 20px;
+
+    border-radius: 11px;
+
+    font-size: 13px;
+
+    font-weight: 700;
+}
+
+
+.hero-primary {
+    display: flex;
+
+    align-items: center;
+
+    gap: 8px;
+
+    background: #2563eb;
+
+    color: white;
+}
+
+
+.hero-secondary {
+    border: 1px solid #e2e8f0;
+
+    background: white;
+
+    color: #334155;
+}
+
+
+/* HERO VISUAL */
+
+.hero-visual {
+    position: relative;
+
+    min-height: 450px;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+}
+
+
+.hero-glow {
+    position: absolute;
+
+    width: 380px;
+    height: 380px;
+
+    border-radius: 50%;
+
+    background: rgba(37, 99, 235, 0.12);
+
+    filter: blur(70px);
+}
+
+
+.trade-card {
+    position: relative;
+
+    width: min(430px, 100%);
+
+    min-height: 390px;
+
+    padding: 30px;
+
+    border: 1px solid #e2e8f0;
+
+    border-radius: 30px;
+
+    background:
+        linear-gradient(
+            145deg,
+            #ffffff,
+            #f1f5f9
+        );
+
+    box-shadow:
+        0 35px 90px rgba(15,23,42,0.13);
+}
+
+
+.trade-card-top {
+    display: flex;
+
+    justify-content: space-between;
+}
+
+
+.trade-card-top small {
+    color: #2563eb;
+
+    font-size: 10px;
+
+    font-weight: 800;
+
+    letter-spacing: 0.15em;
+}
+
+
+.trade-card-top h3 {
+    margin-top: 7px;
+
+    font-size: 23px;
+}
+
+
+.trade-card-top svg {
+    color: #2563eb;
+}
+
+
+/* MAP */
+
+.trade-map {
+    position: relative;
+
+    height: 190px;
+
+    margin-top: 25px;
+
+    border-radius: 20px;
+
+    background:
+        radial-gradient(
+            circle,
+            #dbeafe 1px,
+            transparent 1px
+        );
+
+    background-size: 18px 18px;
+
+    overflow: hidden;
+}
+
+
+.map-line {
+    position: absolute;
+
+    height: 1px;
+
+    background: #93c5fd;
+
+    transform-origin: left;
+}
+
+
+.line-one {
+    width: 230px;
+
+    top: 55%;
+
+    left: 15%;
+
+    transform: rotate(-16deg);
+}
+
+
+.line-two {
+    width: 180px;
+
+    top: 35%;
+
+    left: 45%;
+
+    transform: rotate(30deg);
+}
+
+
+.map-dot {
+    position: absolute;
+
+    width: 10px;
+    height: 10px;
+
+    border-radius: 50%;
+
+    background: #2563eb;
+
+    box-shadow:
+        0 0 0 6px rgba(37,99,235,0.12);
+}
+
+
+.dot-one {
+    left: 15%;
+
+    top: 50%;
+}
+
+
+.dot-two {
+    left: 52%;
+
+    top: 30%;
+}
+
+
+.dot-three {
+    right: 15%;
+
+    bottom: 25%;
+}
+
+
+/* STATS */
+
+.trade-stat {
+    display: grid;
+
+    grid-template-columns: 1fr 1fr;
+
+    gap: 12px;
+
+    margin-top: 20px;
+}
+
+
+.trade-stat div {
+    padding: 15px;
+
+    border-radius: 15px;
+
+    background: white;
+
+    border: 1px solid #e2e8f0;
+}
+
+
+.trade-stat span {
+    display: block;
+
+    color: #94a3b8;
+
+    font-size: 10px;
+}
+
+
+.trade-stat strong {
+    display: block;
+
+    margin-top: 5px;
+
+    font-size: 20px;
+}
+
+
+/* TRUST */
+
+.trust-section {
+    max-width: 1250px;
+
+    margin: auto;
+
+    padding: 0 30px 70px;
+
+    display: grid;
+
+    grid-template-columns:
+        repeat(3, 1fr);
+
+    gap: 15px;
+}
+
+
+.trust-card {
+    padding: 22px;
+
+    display: flex;
+
+    align-items: center;
+
+    gap: 15px;
+
+    border: 1px solid #e2e8f0;
+
+    border-radius: 18px;
+
+    background: white;
+}
+
+
+.trust-card svg {
+    color: #2563eb;
+}
+
+
+.trust-card strong {
+    display: block;
+
+    font-size: 13px;
+}
+
+
+.trust-card span {
+    display: block;
+
+    margin-top: 4px;
+
+    color: #64748b;
+
+    font-size: 11px;
+}
+
+
+/* MOBILE */
+
+@media (max-width: 950px) {
+
+    .nav-links {
+        display: none;
+    }
+
+    .hero-section {
+        grid-template-columns: 1fr;
+
+        padding: 60px 30px;
+    }
+
+    .hero-content {
+        text-align: center;
+
+        margin: auto;
+    }
+
+    .hero-badge {
+        margin: auto;
+    }
+
+    .hero-content > p {
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    .hero-search {
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    .hero-actions {
+        justify-content: center;
+    }
+
+    .hero-visual {
+        min-height: 380px;
+    }
+}
+
+
+@media (max-width: 650px) {
+
+    .home-navbar {
+        padding: 0 18px;
+    }
+
+    .nav-login {
+        display: none;
+    }
+
+    .hero-section {
+        padding: 45px 18px;
+    }
+
+    .hero-content h1 {
+        font-size: 48px;
+    }
+
+    .hero-content > p {
+        font-size: 14px;
+    }
+
+    .hero-search {
+        height: auto;
+
+        padding: 7px;
+    }
+
+    .hero-search input {
+        min-width: 0;
+    }
+
+    .hero-search button {
+        padding: 0 12px;
+    }
+
+    .hero-actions {
+        flex-direction: column;
+    }
+
+    .hero-primary,
+    .hero-secondary {
+        justify-content: center;
+
+        text-align: center;
+    }
+
+    .trade-card {
+        padding: 22px;
+    }
+
+    .trust-section {
+        grid-template-columns: 1fr;
+
+        padding-left: 18px;
+        padding-right: 18px;
+    }
+}
