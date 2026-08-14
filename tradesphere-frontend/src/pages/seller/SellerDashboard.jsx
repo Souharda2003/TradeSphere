@@ -34,26 +34,11 @@ function SellerDashboard() {
     const navigate =
         useNavigate();
 
-
-    // =========================================
-    // USER
-    // =========================================
-
     const [user, setUser] =
         useState(null);
 
-
-    // =========================================
-    // PRODUCTS
-    // =========================================
-
     const [products, setProducts] =
         useState([]);
-
-
-    // =========================================
-    // LOADING
-    // =========================================
 
     const [loading, setLoading] =
         useState(true);
@@ -62,18 +47,8 @@ function SellerDashboard() {
     const [productsLoading, setProductsLoading] =
         useState(false);
 
-
-    // =========================================
-    // ERROR
-    // =========================================
-
     const [error, setError] =
         useState("");
-
-
-    // =========================================
-    // LOAD DASHBOARD
-    // =========================================
 
     useEffect(() => {
 
@@ -145,10 +120,6 @@ function SellerDashboard() {
         }
     }
 
-
-    // =========================================
-    // REFRESH PRODUCTS
-    // =========================================
 
     async function refreshProducts() {
 
@@ -570,6 +541,7 @@ function SellerDashboard() {
 
                     <button
                         className="premium-button"
+                        type = "button"
                         onClick={() =>
                             navigate(
                                 "/seller/products/add"
@@ -584,11 +556,6 @@ function SellerDashboard() {
                     </button>
 
                 </section>
-
-
-                {/* =================================
-                    STATISTICS
-                ================================= */}
 
                 <section className="seller-stats">
 
@@ -859,10 +826,9 @@ function SellerDashboard() {
                     <div className="seller-action-grid">
 
 
-                        {/* ADD PRODUCT */}
-
                         <button
                             className="seller-action-card"
+                            type="button"
                             onClick={() =>
                                 navigate(
                                     "/seller/products/add"
@@ -897,6 +863,7 @@ function SellerDashboard() {
 
                         <button
                             className="seller-action-card"
+                            type="button"
                             onClick={() =>
                                 navigate(
                                     "/seller/products"

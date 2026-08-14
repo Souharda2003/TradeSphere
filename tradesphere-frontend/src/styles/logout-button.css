@@ -1,0 +1,450 @@
+
+.dashboard-logout-button {
+
+    display: inline-flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    gap: 8px;
+
+    min-height: 38px;
+
+    padding: 0 15px;
+
+    border: 1.5px solid #f0e2e8;
+
+    border-radius: 10px;
+
+    background: #ffffff;
+
+    color: red;
+
+    font-size: 13px;
+
+    font-weight: 700;
+
+    cursor: pointer;
+
+    transition:
+        background 0.2s ease,
+        border-color 0.2s ease,
+        color 0.2s ease,
+        transform 0.2s ease,
+        box-shadow 0.2s ease;
+
+}
+
+
+.dashboard-logout-button:hover {
+
+    background: #fff7f7;
+
+    border-color: #fecaca;
+
+    color: #dc2626;
+
+    transform: translateY(-1px);
+
+    box-shadow:
+        0 6px 18px rgba(
+            15,
+            23,
+            42,
+            0.08
+        );
+
+}
+
+
+.dashboard-logout-button:active {
+
+    transform: translateY(0);
+
+}
+
+
+.logout-modal-overlay {
+    position: fixed;
+    inset: 0;
+
+    z-index: 99999;
+
+    display: flex;
+
+    align-items: center;
+    justify-content: center;
+
+    width: 100%;
+    height: 100%;
+
+    padding: 20px;
+
+    box-sizing: border-box;
+
+    background: rgba(
+        15,
+        23,
+        42,
+        0.48
+    );
+
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+
+    animation:
+        logoutOverlayIn
+        0.2s
+        ease
+        forwards;
+}.logout-modal {
+    position: relative;
+
+    width: min(
+        100%,
+        410px
+    );
+
+    margin: 0;
+
+    background: #ffffff;
+
+    border: 1px solid rgba(
+        226,
+        232,
+        240,
+        0.9
+    );
+
+    border-radius: 22px;
+
+    padding: 30px;
+
+    box-sizing: border-box;
+
+    text-align: center;
+
+    box-shadow:
+        0 30px 80px rgba(
+            15,
+            23,
+            42,
+            0.22
+        ),
+        0 8px 30px rgba(
+            15,
+            23,
+            42,
+            0.10
+        );
+
+    animation:
+        logoutModalIn
+        0.25s
+        cubic-bezier(
+            0.16,
+            1,
+            0.3,
+            1
+        );
+}
+.logout-modal-icon {
+
+    width: 58px;
+
+    height: 58px;
+
+    margin: 0 auto 18px;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    border-radius: 16px;
+
+    background: #fff1f2;
+
+    color: #dc2626;
+
+    border: 1px solid #fecdd3;
+
+}
+
+
+/* =====================================================
+   CONTENT
+===================================================== */
+
+.logout-modal-content h2 {
+
+    margin: 0;
+
+    color: #0f172a;
+
+    font-size: 21px;
+
+    font-weight: 800;
+
+    letter-spacing: -0.02em;
+
+}
+
+
+.logout-modal-content p {
+
+    margin: 9px auto 0;
+
+    max-width: 320px;
+
+    color: #64748b;
+
+    font-size: 13px;
+
+    line-height: 1.65;
+
+}
+
+
+/* =====================================================
+   ACTIONS
+===================================================== */
+
+.logout-modal-actions {
+
+    display: grid;
+
+    grid-template-columns:
+        1fr
+        1fr;
+
+    gap: 10px;
+
+    margin-top: 25px;
+
+}
+
+
+/* =====================================================
+   CANCEL
+===================================================== */
+
+.logout-cancel-button {
+
+    min-height: 42px;
+
+    border: 1px solid #e2e8f0;
+
+    border-radius: 11px;
+
+    background: #ffffff;
+
+    color: #334155;
+
+    font-size: 13px;
+
+    font-weight: 700;
+
+    cursor: pointer;
+
+    transition:
+        background 0.2s ease,
+        border-color 0.2s ease,
+        transform 0.2s ease;
+
+}
+
+
+.logout-cancel-button:hover {
+
+    background: #f8fafc;
+
+    border-color: #cbd5e1;
+
+}
+
+
+.logout-cancel-button:active {
+
+    transform: scale(0.98);
+
+}
+
+
+/* =====================================================
+   CONFIRM LOGOUT
+===================================================== */
+
+.logout-confirm-button {
+
+    min-height: 42px;
+
+    display: inline-flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    gap: 7px;
+
+    border: 1px solid #dc2626;
+
+    border-radius: 11px;
+
+    background: #dc2626;
+
+    color: #ffffff;
+
+    font-size: 13px;
+
+    font-weight: 750;
+
+    cursor: pointer;
+
+    transition:
+        background 0.2s ease,
+        border-color 0.2s ease,
+        transform 0.2s ease,
+        box-shadow 0.2s ease;
+
+}
+
+
+.logout-confirm-button:hover {
+
+    background: #b91c1c;
+
+    border-color: #b91c1c;
+
+    box-shadow:
+        0 8px 20px rgba(
+            220,
+            38,
+            38,
+            0.20
+        );
+
+    transform: translateY(-1px);
+
+}
+
+
+.logout-confirm-button:active {
+
+    transform: translateY(0);
+
+}
+
+
+/* =====================================================
+   DISABLED
+===================================================== */
+
+.logout-modal button:disabled {
+
+    opacity: 0.55;
+
+    cursor: not-allowed;
+
+    transform: none;
+
+    box-shadow: none;
+
+}
+
+
+/* =====================================================
+   ANIMATIONS
+===================================================== */
+
+@keyframes logoutOverlayIn {
+
+    from {
+
+        opacity: 0;
+
+    }
+
+    to {
+
+        opacity: 1;
+
+    }
+
+}
+
+
+@keyframes logoutModalIn {
+
+    from {
+
+        opacity: 0;
+
+        transform:
+            translateY(12px)
+            scale(0.96);
+
+    }
+
+    to {
+
+        opacity: 1;
+
+        transform:
+            translateY(0)
+            scale(1);
+
+    }
+
+}
+
+
+/* =====================================================
+   MOBILE
+===================================================== */
+
+@media (
+    max-width: 520px
+) {
+
+    .logout-modal {
+
+        padding: 25px 20px;
+
+        border-radius: 19px;
+
+    }
+
+
+    .logout-modal-actions {
+
+        grid-template-columns: 1fr;
+
+    }
+
+
+    .logout-confirm-button {
+
+        order: -1;
+
+    }
+
+
+    .dashboard-logout-button span {
+
+        display: none;
+
+    }
+
+
+    .dashboard-logout-button {
+
+        width: 38px;
+
+        padding: 0;
+
+    }
+
+}

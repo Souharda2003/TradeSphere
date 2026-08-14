@@ -1,0 +1,33 @@
+.cart-quantity-input {
+    width: 72px;
+    height: 38px;
+
+    border: none;
+    outline: none;
+
+    background: transparent;
+
+    text-align: center;
+
+    font-size: 15px;
+    font-weight: 700;
+
+    color: #111827;
+}
+
+.cart-quantity-input::-webkit-outer-spin-button,
+.cart-quantity-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+
+.cart-quantity-input[type="number"] {
+    appearance: textfield;
+}
+
+
+.cart-quantity-input:focus {
+    background: #f8fafc;
+    border-radius: 8px;
+}

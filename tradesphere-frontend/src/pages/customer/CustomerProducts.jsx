@@ -1,5 +1,6 @@
 import {
     useEffect,
+    useMemo,
     useState
 } from "react";
 
@@ -8,7 +9,10 @@ import {
     ShoppingCart,
     Package,
     RefreshCw,
-    SlidersHorizontal
+    SlidersHorizontal,
+    X,
+    Plus,
+    Check
 } from "lucide-react";
 
 import {
@@ -22,28 +26,61 @@ import "../../styles/customer-products.css";
 
 function CustomerProducts() {
 
-    const navigate =
-        useNavigate();
-
-
+    const navigate = useNavigate();
     const [products, setProducts] =
         useState([]);
-
 
     const [loading, setLoading] =
         useState(true);
 
-
     const [error, setError] =
         useState("");
-
-
     const [search, setSearch] =
         useState("");
 
-
     const [category, setCategory] =
-        useState("ALL");
+        useState("");
+
+    const [showFilter, setShowFilter] =
+        useState(false);
+    const [cartItems, setCartItems] =
+        useState([]);
+
+    const [cartLoading, setCartLoading] =
+        useState(false);
+
+    const [addedProductId, setAddedProductId] =
+        useState(null);
+
+
+    const [delivery, setDelivery] =
+        useState({
+
+            address: "",
+            city: "",
+            state: "",
+            pincode: ""
+
+        });
+
+
+    const [showConfirmModal, setShowConfirmModal] =
+        useState(false);
+
+    const [showOtpModal, setShowOtpModal] =
+        useState(false);
+
+    const [otp, setOtp] =
+        useState("");
+
+    const [sendingOtp, setSendingOtp] =
+        useState(false);
+
+    const [verifyingOtp, setVerifyingOtp] =
+        useState(false);
+
+    const [orderError, setOrderError] =
+        useState("");
 
 
     /*
@@ -56,7 +93,7 @@ function CustomerProducts() {
 
         loadProducts();
 
-    }, [search, category]);
+    }, []);
 
 
     async function loadProducts() {
@@ -70,18 +107,7 @@ function CustomerProducts() {
 
             const response =
                 await api.get(
-                    "/products",
-                    {
-                        params: {
-
-                            search:
-                                search,
-
-                            category:
-                                category
-
-                        }
-                    }
+                    "/products"
                 );
 
 
@@ -111,47 +137,204 @@ function CustomerProducts() {
         } finally {
 
             setLoading(false);
+
         }
+
     }
 
 
     /*
     =========================================
-    CATEGORIES
+    LOAD CART
     =========================================
     */
 
-    const categories = [
+    useEffect(() => {
 
-        "ALL",
+        loadCart();
 
-        ...new Set(
+    }, []);
 
-            products
-                .map(
-                    product =>
-                        product.category
+
+async function loadCart() {
+
+    try {
+
+        const response =
+            await api.get(
+                "/cart"
+            );
+
+
+        console.log(
+            "CART RESPONSE:",
+            response.data
+        );
+
+
+        setCartItems(
+            response.data.items || []
+        );
+
+
+    } catch (error) {
+
+        console.error(
+            "LOAD CART ERROR:",
+            error.response?.data || error
+        );
+
+
+        setCartItems([]);
+
+
+        if (
+            error.response?.status !== 401
+        ) {
+
+            setError(
+                error.response
+                    ?.data
+                    ?.message ||
+                "Unable to load cart."
+            );
+
+        }
+
+    }
+
+}
+const cartCount =
+    useMemo(() => {
+
+        return cartItems.length;
+
+    }, [cartItems]);
+function getCartItem(productId) {
+
+    return cartItems.find(
+        item =>
+            Number(item.product_id) ===
+            Number(productId)
+    );
+
+}
+const cartTotal =
+    useMemo(() => {
+
+        return cartItems.reduce(
+
+            (
+                total,
+                item
+            ) => {
+
+                const quantity =
+                    Number(
+                        item.quantity || 0
+                    );
+
+
+                const price =
+                    Number(
+                        item.unit_price ??
+                        item.price ??
+                        0
+                    );
+
+
+                return (
+                    total +
+                    quantity * price
+                );
+
+            },
+
+            0
+
+        );
+
+    }, [cartItems]);
+    const categories =
+        useMemo(() => {
+
+            return [
+                ...new Set(
+
+                    products
+                        .map(
+                            product =>
+                                product.category
+                        )
+                        .filter(Boolean)
+
                 )
-                .filter(Boolean)
 
-        )
+            ].sort();
 
-    ];
+        }, [products]);
 
 
     /*
     =========================================
-    IMAGE URL
+    FILTERED PRODUCTS
     =========================================
     */
 
-    function getImageUrl(
-        image
-    ) {
+    const filteredProducts =
+        useMemo(() => {
+
+            const keyword =
+                search
+                    .trim()
+                    .toLowerCase();
+
+
+            return products.filter(
+                product => {
+
+                    const matchesSearch =
+                        !keyword ||
+
+                        product.product_name
+                            ?.toLowerCase()
+                            .includes(keyword) ||
+
+                        product.sku
+                            ?.toLowerCase()
+                            .includes(keyword) ||
+
+                        product.description
+                            ?.toLowerCase()
+                            .includes(keyword);
+
+
+                    const matchesCategory =
+                        !category ||
+
+                        product.category ===
+                            category;
+
+
+                    return (
+                        matchesSearch &&
+                        matchesCategory
+                    );
+
+                }
+            );
+
+        }, [
+            products,
+            search,
+            category
+        ]);
+    function getImageUrl(image) {
 
         if (!image) {
 
             return null;
+
         }
 
 
@@ -160,29 +343,333 @@ function CustomerProducts() {
         ) {
 
             return image;
+
         }
 
 
-        return `http://localhost:5000${image}`;
+        return (
+            `http://localhost:5000${image}`
+        );
+
+    }
+
+
+async function addToCart(product) {
+    try {
+        setCartLoading(true);
+        setError("");
+
+        const response = await api.post(
+            "/cart",
+            {
+                productId: Number(product.id),
+                quantity: 5
+            }
+        );
+
+        console.log(
+            "ADD TO CART RESPONSE:",
+            response.data
+        );
+
+        await loadCart();
+
+        setAddedProductId(product.id);
+
+        setTimeout(() => {
+            setAddedProductId(null);
+        }, 1800);
+
+    } catch (error) {
+
+        console.error(
+            "ADD TO CART ERROR:",
+            error.response?.data || error
+        );
+
+        setError(
+            error.response?.data?.message ||
+            "Unable to add product to cart."
+        );
+
+    } finally {
+        setCartLoading(false);
+    }
+}
+
+
+    function openProduct(productId) {
+
+        navigate(
+            `/products/${productId}`
+        );
+
+    }
+
+
+    function handleContinue() {
+
+        if (
+            cartCount <= 0
+        ) {
+
+            setOrderError(
+                "Your cart is empty."
+            );
+
+            return;
+
+        }
+
+
+        setOrderError("");
+
+        setShowConfirmModal(true);
+
+    }
+async function handleConfirmOrder() {
+
+    /*
+    =========================================
+    VALIDATE DELIVERY INFORMATION
+    =========================================
+    */
+
+    if (
+        !delivery.address.trim() ||
+        !delivery.city.trim() ||
+        !delivery.state.trim() ||
+        !delivery.pincode.trim()
+    ) {
+
+        setOrderError(
+            "Please complete your delivery information."
+        );
+
+        return;
     }
 
 
     /*
     =========================================
-    PRODUCT DETAILS
+    VALIDATE PINCODE
     =========================================
     */
 
-    function openProduct(
-        productId
+    if (
+        delivery.pincode.length !== 6
     ) {
 
-        navigate(
-            `/products/${productId}`
+        setOrderError(
+            "Please enter a valid 6-digit pincode."
         );
+
+        return;
     }
 
 
+    try {
+
+        setSendingOtp(true);
+
+        setOrderError("");
+
+
+        /*
+        =========================================
+        SEND ORDER OTP
+        =========================================
+        */
+
+        await api.post(
+            "/otp/order/send"
+        );
+
+
+        /*
+        =========================================
+        OPEN OTP MODAL
+        =========================================
+        */
+
+        setShowConfirmModal(false);
+
+        setOtp("");
+
+        setShowOtpModal(true);
+
+
+    } catch (error) {
+
+        console.error(
+            "SEND ORDER OTP ERROR:",
+            error.response?.data ||
+            error.message ||
+            error
+        );
+
+
+        setOrderError(
+            error.response
+                ?.data
+                ?.message ||
+            "Unable to send OTP."
+        );
+
+
+    } finally {
+
+        setSendingOtp(false);
+
+    }
+
+}
+async function handleVerifyOtp() {
+
+    /*
+    =========================================
+    VALIDATE OTP
+    =========================================
+    */
+
+    if (
+        otp.length !== 6
+    ) {
+
+        setOrderError(
+            "Please enter the 6-digit OTP."
+        );
+
+        return;
+    }
+
+
+    try {
+
+        setVerifyingOtp(true);
+
+        setOrderError("");
+
+
+        /*
+        =========================================
+        STEP 1
+        VERIFY OTP
+        =========================================
+        */
+
+        await api.post(
+            "/otp/order/verify",
+            {
+                otp
+            }
+        );
+
+
+        /*
+        =========================================
+        STEP 2
+        CREATE ORDER
+        =========================================
+        */
+
+        const response =
+            await api.post(
+                "/orders",
+                {
+                    deliveryAddress:
+                        delivery.address,
+
+                    deliveryCity:
+                        delivery.city,
+
+                    deliveryState:
+                        delivery.state,
+
+                    deliveryPincode:
+                        delivery.pincode,
+
+                    deliveryCharge:
+                        0
+                }
+            );
+
+
+        /*
+        =========================================
+        STEP 3
+        CLOSE OTP MODAL
+        =========================================
+        */
+
+        setShowOtpModal(false);
+
+        setOtp("");
+
+        setOrderError("");
+
+
+        /*
+        =========================================
+        STEP 4
+        REFRESH CART
+        =========================================
+        */
+
+        await loadCart();
+
+
+        /*
+        =========================================
+        STEP 5
+        ORDER SUCCESS
+        =========================================
+        */
+
+        const referenceNo =
+            response.data?.order?.referenceNo;
+
+
+        if (referenceNo) {
+
+            navigate(
+                `/order-success/${referenceNo}`
+            );
+
+        } else {
+
+            navigate(
+                "/profile/orders"
+            );
+
+        }
+
+
+    } catch (error) {
+
+        console.error(
+            "VERIFY OTP / CREATE ORDER ERROR:",
+            error.response?.data ||
+            error.message ||
+            error
+        );
+
+
+        setOrderError(
+            error.response
+                ?.data
+                ?.message ||
+            "Invalid OTP or unable to place the order."
+        );
+
+
+    } finally {
+
+        setVerifyingOtp(false);
+
+    }
+
+}
     return (
 
         <div className="customer-products-page">
@@ -198,7 +685,9 @@ function CustomerProducts() {
                 <div
                     className="customer-logo"
                     onClick={() =>
-                        navigate("/")
+                        navigate(
+                            "/customer/dashboard"
+                        )
                     }
                 >
 
@@ -216,14 +705,19 @@ function CustomerProducts() {
                 <nav>
 
                     <button
+                        type="button"
                         onClick={() =>
-                            navigate("/")
+                            navigate(
+                                "/customer/dashboard"
+                            )
                         }
                     >
                         Home
                     </button>
 
+
                     <button
+                        type="button"
                         className="nav-active"
                     >
                         Products
@@ -234,8 +728,12 @@ function CustomerProducts() {
 
                 <div className="customer-header-actions">
 
+
+                    {/* CART */}
+
                     <button
                         className="customer-cart-button"
+                        type="button"
                         onClick={() =>
                             navigate(
                                 "/cart"
@@ -252,21 +750,22 @@ function CustomerProducts() {
                         </span>
 
                         <b>
-                            0
+                            {cartCount}
                         </b>
 
                     </button>
 
 
+                    {/* CONTINUE */}
+
                     <button
-                        className="customer-login-button"
-                        onClick={() =>
-                            navigate(
-                                "/login"
-                            )
+                        className="continue-button"
+                        type="button"
+                        onClick={
+                            handleContinue
                         }
                     >
-                        Login
+                        Continue
                     </button>
 
                 </div>
@@ -274,46 +773,38 @@ function CustomerProducts() {
             </header>
 
 
-            {/* =================================
-                MAIN
-            ================================= */}
-
             <main className="customer-products-main">
-
-
-                {/* HERO */}
-
-                <section className="customer-products-hero">
-
+                <section
+                    className="customer-products-hero"
+                >
                     <p>
                         TRADE & EXPORT MARKETPLACE
                     </p>
-
                     <h1>
                         Quality products,
                         <br />
-
                         <span>
                             trusted trade.
                         </span>
                     </h1>
-
                     <span>
                         Explore premium export and
                         import products from verified sellers.
                     </span>
-
                 </section>
 
 
                 {/* =================================
-                    SEARCH
+                    SEARCH + FILTER
                 ================================= */}
 
-                <section className="customer-search-area">
+                <section
+                    className="customer-search-area"
+                >
 
-
-                    <div className="customer-search">
+                    <div
+                        className="customer-search"
+                    >
 
                         <Search
                             size={19}
@@ -322,77 +813,181 @@ function CustomerProducts() {
                         <input
                             type="text"
                             placeholder="Search soyabean, papad, spices..."
-                            value={
-                                search
-                            }
-                            onChange={
-                                event =>
-                                    setSearch(
-                                        event.target.value
-                                    )
+                            value={search}
+                            onChange={event =>
+                                setSearch(
+                                    event.target.value
+                                )
                             }
                         />
 
                     </div>
 
 
-                    <div className="customer-filter-icon">
+                    {/* FILTER */}
 
-                        <SlidersHorizontal
-                            size={17}
-                        />
+                    <div
+                        className="customer-filter-wrapper"
+                    >
 
-                    </div>
+                        <button
+                            type="button"
+                            className={
+                                "customer-filter-icon" +
+                                (
+                                    showFilter
+                                        ? " active"
+                                        : ""
+                                )
+                            }
+                            onClick={() =>
+                                setShowFilter(
+                                    previous =>
+                                        !previous
+                                )
+                            }
+                        >
 
-                </section>
+                            <SlidersHorizontal
+                                size={18}
+                            />
+
+                        </button>
 
 
-                {/* =================================
-                    CATEGORY
-                ================================= */}
+                        {showFilter && (
 
-                <section className="customer-categories">
-
-                    {categories.map(
-                        item => (
-
-                            <button
-                                key={
-                                    item
-                                }
-                                className={
-                                    category === item
-                                        ? "customer-category active"
-                                        : "customer-category"
-                                }
-                                onClick={() =>
-                                    setCategory(
-                                        item
-                                    )
-                                }
+                            <div
+                                className="customer-filter-dropdown"
                             >
 
-                                {item}
+                                <div
+                                    className="filter-dropdown-header"
+                                >
 
-                            </button>
+                                    <span>
+                                        Filter by category
+                                    </span>
 
-                        )
-                    )}
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            setShowFilter(
+                                                false
+                                            )
+                                        }
+                                    >
+                                        <X size={15} />
+                                    </button>
+
+                                </div>
+
+
+                                <button
+                                    type="button"
+                                    className={
+                                        !category
+                                            ? "filter-option selected"
+                                            : "filter-option"
+                                    }
+                                    onClick={() => {
+
+                                        setCategory("");
+
+                                        setShowFilter(
+                                            false
+                                        );
+
+                                    }}
+                                >
+                                    All Products
+                                </button>
+
+
+                                {categories.map(
+                                    item => (
+
+                                        <button
+                                            type="button"
+                                            key={item}
+                                            className={
+                                                category === item
+                                                    ? "filter-option selected"
+                                                    : "filter-option"
+                                            }
+                                            onClick={() => {
+
+                                                setCategory(
+                                                    item
+                                                );
+
+                                                setShowFilter(
+                                                    false
+                                                );
+
+                                            }}
+                                        >
+
+                                            <span>
+                                                {item}
+                                            </span>
+
+                                            {category === item && (
+                                                <Check
+                                                    size={15}
+                                                />
+                                            )}
+
+                                        </button>
+
+                                    )
+                                )}
+
+                            </div>
+
+                        )}
+
+                    </div>
 
                 </section>
 
 
-                {/* =================================
-                    ERROR
-                ================================= */}
+                {/* SELECTED FILTER */}
+
+                {category && (
+
+                    <div className="selected-filter">
+
+                        <span>
+                            Category:
+                            <strong>
+                                {category}
+                            </strong>
+                        </span>
+
+                        <button
+                            type="button"
+                            onClick={() =>
+                                setCategory("")
+                            }
+                        >
+                            <X size={14} />
+                        </button>
+
+                    </div>
+
+                )}
 
                 {error && (
 
-                    <div className="customer-products-error">
+                    <div
+                        className="customer-products-error"
+                    >
 
                         {error}
 
                         <button
+                            type="button"
                             onClick={
                                 loadProducts
                             }
@@ -404,14 +999,11 @@ function CustomerProducts() {
 
                 )}
 
-
-                {/* =================================
-                    LOADING
-                ================================= */}
-
                 {loading ? (
 
-                    <div className="customer-products-loading">
+                    <div
+                        className="customer-products-loading"
+                    >
 
                         <RefreshCw
                             size={22}
@@ -424,13 +1016,11 @@ function CustomerProducts() {
 
                     </div>
 
-                ) : products.length === 0 ? (
+                ) : filteredProducts.length === 0 ? (
 
-                    /* =================================
-                        EMPTY
-                    ================================= */
-
-                    <div className="customer-no-products">
+                    <div
+                        className="customer-no-products"
+                    >
 
                         <div>
                             <Package
@@ -450,16 +1040,12 @@ function CustomerProducts() {
                     </div>
 
                 ) : (
+                    <section
+                        className="customer-product-grid"
+                    >
 
-                    /* =================================
-                        PRODUCT GRID
-                    ================================= */
-
-                    <section className="customer-product-grid">
-
-                        {products.map(
+                        {filteredProducts.map(
                             product => {
-
 
                                 const image =
                                     getImageUrl(
@@ -474,6 +1060,16 @@ function CustomerProducts() {
                                     );
 
 
+                                const isAdded =
+                                    addedProductId ===
+                                    product.id;
+                                const cartItem =
+                                    getCartItem(
+                                        product.id
+                                    );
+                                const isInCart =
+                                    Boolean(cartItem);
+
                                 return (
 
                                     <article
@@ -481,49 +1077,59 @@ function CustomerProducts() {
                                         key={
                                             product.id
                                         }
-                                        onClick={() =>
-                                            openProduct(
-                                                product.id
-                                            )
-                                        }
                                     >
 
 
-                                        {/* IMAGE */}
+                                        {/* IMAGE BOX */}
 
-                                        <div className="customer-product-image">
+                                        <div
+                                            className="customer-product-image"
+                                        >
 
-                                            {image ? (
+                                            <div
+                                                className="product-image-box"
+                                            >
 
-                                                <img
-                                                    src={
-                                                        image
+                                                {image ? (
+
+                                                    <img
+                                                        src={
+                                                            image
+                                                        }
+                                                        alt={
+                                                            product.product_name
+                                                        }
+                                                    />
+
+                                                ) : (
+
+                                                    <Package
+                                                        className="default-product-icon"
+                                                    />
+
+                                                )}
+
+                                            </div>
+
+
+                                            {product.category && (
+
+                                                <span>
+                                                    {
+                                                        product.category
                                                     }
-                                                    alt={
-                                                        product.product_name
-                                                    }
-                                                />
-
-                                            ) : (
-
-                                                <Package
-                                                    size={42}
-                                                />
+                                                </span>
 
                                             )}
-
-
-                                            <span>
-                                                {product.category}
-                                            </span>
 
                                         </div>
 
 
                                         {/* CONTENT */}
 
-                                        <div className="customer-product-content">
-
+                                        <div
+                                            className="customer-product-content"
+                                        >
 
                                             <small>
                                                 SKU:{" "}
@@ -541,7 +1147,6 @@ function CustomerProducts() {
 
 
                                             <p>
-
                                                 {
                                                     product.description
                                                         ?.slice(
@@ -550,24 +1155,32 @@ function CustomerProducts() {
                                                         ) ||
 
                                                     "Premium quality export product."
-
                                                 }
 
-                                                {product.description?.length >
+                                                {
+                                                    product.description?.length >
                                                     80 &&
-                                                    "..."}
-
+                                                    "..."
+                                                }
                                             </p>
 
 
-                                            <div className="customer-product-price">
+                                            <div
+                                                className="customer-product-price"
+                                            >
 
                                                 ₹
-                                                {Number(
-                                                    product.price
-                                                ).toLocaleString(
-                                                    "en-IN"
-                                                )}
+                                                {
+                                                    Number(
+                                                        product.price
+                                                    ).toLocaleString(
+                                                        "en-IN",
+                                                        {
+                                                            minimumFractionDigits: 2,
+                                                            maximumFractionDigits: 2
+                                                        }
+                                                    )
+                                                }
 
                                                 <small>
                                                     /
@@ -579,15 +1192,18 @@ function CustomerProducts() {
                                             </div>
 
 
-                                            <div className="customer-product-stock">
+                                            <div
+                                                className="customer-product-stock"
+                                            >
 
                                                 <span>
                                                     Available
                                                 </span>
 
                                                 <strong>
-                                                    {available}
-                                                    {" "}
+                                                    {
+                                                        available
+                                                    }{" "}
                                                     {
                                                         product.unit
                                                     }
@@ -596,22 +1212,71 @@ function CustomerProducts() {
                                             </div>
 
 
-                                            <button
-                                                className="view-product-button"
-                                                onClick={
-                                                    event => {
+                                            {/* BUTTONS */}
 
-                                                        event.stopPropagation();
+                                            <div
+                                                className="product-card-actions"
+                                            >
 
+                                                <button
+                                                    type="button"
+                                                    className="view-product-button"
+                                                    onClick={() =>
                                                         openProduct(
                                                             product.id
-                                                        );
-
+                                                        )
                                                     }
-                                                }
-                                            >
-                                                View Product
-                                            </button>
+                                                >
+                                                    View Product
+                                                </button>
+
+<button
+    type="button"
+    className={
+        isInCart || isAdded
+            ? "add-cart-button added"
+            : "add-cart-button"
+    }
+    disabled={
+        cartLoading ||
+        available <= 0 ||
+        isInCart
+    }
+    onClick={() =>
+        addToCart(product)
+    }
+>
+
+    {isInCart || isAdded ? (
+        <>
+
+            In Cart
+            {cartItem && (
+                <span>
+                    {" "}·{" "}
+                    {Number(
+                        cartItem.quantity
+                    ).toLocaleString(
+                        "en-IN"
+                    )}{" "}
+                    {product.unit}
+                </span>
+            )}
+        </>
+
+    ) : (
+
+        <>
+            
+
+            Add to Cart
+        </>
+
+    )}
+
+</button>
+
+                                            </div>
 
                                         </div>
 
@@ -628,8 +1293,356 @@ function CustomerProducts() {
 
             </main>
 
+
+            {/* =========================================
+                ORDER CONFIRMATION MODAL
+            ========================================= */}
+
+            {showConfirmModal && (
+
+                <div
+                    className="checkout-modal-overlay"
+                >
+
+                    <div
+                        className="checkout-modal"
+                    >
+
+                        <button
+                            className="modal-close"
+                            type="button"
+                            onClick={() =>
+                                setShowConfirmModal(
+                                    false
+                                )
+                            }
+                        >
+                            ×
+                        </button>
+
+
+                        <p
+                            className="modal-eyebrow"
+                        >
+                            ORDER CONFIRMATION
+                        </p>
+
+
+                        <h2>
+                            Confirm your order
+                        </h2>
+
+
+                        <p
+                            className="modal-description"
+                        >
+                            Review your cart and
+                            provide delivery information.
+                        </p>
+
+
+                        <div
+                            className="modal-summary"
+                        >
+
+                            <div>
+
+                                <span>
+                                    Items
+                                </span>
+
+                                <strong>
+                                    {cartCount}
+                                </strong>
+
+                            </div>
+
+
+                            <div>
+
+                                <span>
+                                    Total
+                                </span>
+
+                                <strong>
+                                    ₹
+                                    {cartTotal.toLocaleString(
+                                        "en-IN",
+                                        {
+                                            minimumFractionDigits: 2
+                                        }
+                                    )}
+                                </strong>
+
+                            </div>
+
+                        </div>
+
+
+                        {/* DELIVERY */}
+
+                        <div
+                            className="delivery-form"
+                        >
+
+                            <input
+                                type="text"
+                                placeholder="Delivery Address"
+                                value={
+                                    delivery.address
+                                }
+                                onChange={e =>
+                                    setDelivery({
+                                        ...delivery,
+                                        address:
+                                            e.target.value
+                                    })
+                                }
+                            />
+
+
+                            <div
+                                className="delivery-row"
+                            >
+
+                                <input
+                                    type="text"
+                                    placeholder="City"
+                                    value={
+                                        delivery.city
+                                    }
+                                    onChange={e =>
+                                        setDelivery({
+                                            ...delivery,
+                                            city:
+                                                e.target.value
+                                        })
+                                    }
+                                />
+
+
+                                <input
+                                    type="text"
+                                    placeholder="State"
+                                    value={
+                                        delivery.state
+                                    }
+                                    onChange={e =>
+                                        setDelivery({
+                                            ...delivery,
+                                            state:
+                                                e.target.value
+                                        })
+                                    }
+                                />
+
+                            </div>
+
+
+                            <input
+                                type="text"
+                                placeholder="Pincode"
+                                maxLength={6}
+                                value={
+                                    delivery.pincode
+                                }
+                                onChange={e =>
+                                    setDelivery({
+                                        ...delivery,
+                                        pincode:
+                                            e.target.value
+                                            .replace(
+                                                /\D/g,
+                                                ""
+                                            )
+                                    })
+                                }
+                            />
+
+                        </div>
+
+
+                        {orderError && (
+
+                            <div
+                                className="checkout-error"
+                            >
+                                {orderError}
+                            </div>
+
+                        )}
+
+
+                        <div
+                            className="modal-actions"
+                        >
+
+                            <button
+                                type="button"
+                                className="modal-secondary"
+                                onClick={() =>{
+                                    setShowConfirmModal(
+                                        false
+                                    )
+                                    navigate("/cart");
+                                }}
+                            >
+                                Review Cart
+                            </button>
+
+
+                            <button
+                                type="button"
+                                className="modal-primary"
+                                disabled={
+                                    sendingOtp
+                                }
+                                onClick={
+                                    handleConfirmOrder
+                                }
+                            >
+
+                                {sendingOtp
+                                    ? "Sending OTP..."
+                                    : "Confirm & Continue"}
+
+                            </button>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            )}
+
+
+            {/* =========================================
+                OTP MODAL
+            ========================================= */}
+
+            {showOtpModal && (
+
+                <div
+                    className="checkout-modal-overlay"
+                >
+
+                    <div
+                        className="checkout-modal otp-modal"
+                    >
+
+                        <button
+                            className="modal-close"
+                            type="button"
+                            onClick={() =>
+                                setShowOtpModal(
+                                    false
+                                )
+                            }
+                        >
+                            ×
+                        </button>
+
+
+                        <div
+                            className="modal-icon"
+                        >
+                            @
+                        </div>
+
+
+                        <p
+                            className="modal-eyebrow"
+                        >
+                            EMAIL VERIFICATION
+                        </p>
+
+
+                        <h2>
+                            Verify your order
+                        </h2>
+
+
+                        <p
+                            className="modal-description"
+                        >
+                            We have sent a verification
+                            OTP to your registered email.
+                        </p>
+
+
+                        <input
+                            className="otp-input"
+                            type="text"
+                            inputMode="numeric"
+                            maxLength={6}
+                            value={otp}
+                            onChange={e =>
+                                setOtp(
+                                    e.target.value
+                                        .replace(
+                                            /\D/g,
+                                            ""
+                                        )
+                                )
+                            }
+                            placeholder="Enter 6-digit OTP"
+                        />
+
+
+                        {orderError && (
+
+                            <div
+                                className="checkout-error"
+                            >
+                                {orderError}
+                            </div>
+
+                        )}
+
+
+                        <button
+                            type="button"
+                            className="modal-primary otp-submit"
+                            disabled={
+                                verifyingOtp ||
+                                otp.length !== 6
+                            }
+                            onClick={
+                                handleVerifyOtp
+                            }
+                        >
+
+                            {verifyingOtp
+                                ? "Verifying..."
+                                : "Verify & Place Order"}
+
+                        </button>
+
+
+                        <button
+                            type="button"
+                            className="otp-resend"
+                            disabled={
+                                sendingOtp
+                            }
+                            onClick={
+                                handleConfirmOrder
+                            }
+                        >
+                            Resend OTP
+                        </button>
+
+                    </div>
+
+                </div>
+
+            )}
+
         </div>
+
     );
+
 }
 
 

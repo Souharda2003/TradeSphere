@@ -27,45 +27,39 @@ function Checkout() {
         useNavigate();
 
 
+    /* =========================================
+       STATE
+    ========================================= */
+
     const [cart, setCart] =
         useState(null);
-
 
     const [loading, setLoading] =
         useState(true);
 
-
     const [sendingOTP, setSendingOTP] =
         useState(false);
-
 
     const [verifyingOTP, setVerifyingOTP] =
         useState(false);
 
-
     const [placingOrder, setPlacingOrder] =
         useState(false);
-
 
     const [otpSent, setOtpSent] =
         useState(false);
 
-
     const [otpVerified, setOtpVerified] =
         useState(false);
-
 
     const [maskedEmail, setMaskedEmail] =
         useState("");
 
-
     const [otp, setOtp] =
         useState("");
 
-
     const [message, setMessage] =
         useState("");
-
 
     const [error, setError] =
         useState("");
@@ -74,26 +68,20 @@ function Checkout() {
     const [form, setForm] =
         useState({
 
-            deliveryAddress:
-                "",
+            deliveryAddress: "",
 
-            deliveryCity:
-                "",
+            deliveryCity: "",
 
-            deliveryState:
-                "",
+            deliveryState: "",
 
-            deliveryPincode:
-                ""
+            deliveryPincode: ""
 
         });
 
 
-    /*
-    =========================================
-    LOAD CART
-    =========================================
-    */
+    /* =========================================
+       LOAD CART
+    ========================================= */
 
     useEffect(() => {
 
@@ -108,6 +96,8 @@ function Checkout() {
 
             setLoading(true);
 
+            setError("");
+
 
             const response =
                 await api.get(
@@ -115,9 +105,18 @@ function Checkout() {
                 );
 
 
+            const items =
+                response.data?.items || [];
+
+
+            /*
+            =====================================
+            EMPTY CART
+            =====================================
+            */
+
             if (
-                !response.data.items ||
-                response.data.items.length === 0
+                items.length === 0
             ) {
 
                 navigate(
@@ -125,6 +124,7 @@ function Checkout() {
                 );
 
                 return;
+
             }
 
 
@@ -136,6 +136,7 @@ function Checkout() {
         } catch (error) {
 
             console.error(
+                "LOAD CHECKOUT ERROR:",
                 error
             );
 
@@ -150,29 +151,161 @@ function Checkout() {
                 );
 
                 return;
+
             }
 
 
             setError(
+
                 error.response
                     ?.data
                     ?.message ||
+
                 "Unable to load checkout."
+
             );
 
 
         } finally {
 
             setLoading(false);
+
         }
+
+    }
+
+
+    /* =========================================
+       FORMAT QUANTITY
+    ========================================= */
+
+    function formatQuantity(
+        value
+    ) {
+
+        const number =
+            Number(value || 0);
+
+
+        if (
+            Number.isInteger(
+                number
+            )
+        ) {
+
+            return number.toLocaleString(
+                "en-IN"
+            );
+
+        }
+
+
+        return number.toLocaleString(
+            "en-IN",
+            {
+                maximumFractionDigits: 3
+            }
+        );
+
+    }
+
+
+    /* =========================================
+       ITEM SUBTOTAL
+    ========================================= */
+
+    function getItemSubtotal(
+        item
+    ) {
+
+        const quantity =
+            Number(
+                item.quantity || 0
+            );
+
+
+        const unitPrice =
+            Number(
+                item.unit_price || 0
+            );
+
+
+        return (
+            quantity *
+            unitPrice
+        );
+
+    }
+
+
+    /* =========================================
+       CART TOTAL
+    ========================================= */
+
+    function getCartTotal() {
+
+        if (
+            !cart ||
+            !Array.isArray(
+                cart.items
+            )
+        ) {
+
+            return 0;
+
+        }
+
+
+        return cart.items.reduce(
+
+            (
+                total,
+                item
+            ) => {
+
+                return (
+                    total +
+                    getItemSubtotal(
+                        item
+                    )
+                );
+
+            },
+
+            0
+
+        );
+
     }
 
 
     /*
-    =========================================
-    INPUT CHANGE
-    =========================================
+    IMPORTANT:
+    Use calculated total if API totalAmount
+    is missing or invalid.
     */
+
+    const calculatedTotal =
+        getCartTotal();
+
+
+    const apiTotal =
+        Number(
+            cart?.totalAmount
+        );
+
+
+    const finalTotal =
+        Number.isFinite(
+            apiTotal
+        )
+            ? apiTotal
+            : calculatedTotal;
+
+
+    /* =========================================
+       FORM CHANGE
+    ========================================= */
 
     function handleChange(
         event
@@ -194,282 +327,448 @@ function Checkout() {
 
             })
         );
+
     }
 
 
-    /*
-    =========================================
-    SEND OTP
-    =========================================
-    */
+/* =========================================
+   SEND OTP
+========================================= */
 
-    async function sendOTP() {
+async function sendOTP() {
 
-        try {
+    try {
 
-            setSendingOTP(true);
-
-            setError("");
-
-            setMessage("");
-
-
-            const response =
-                await api.post(
-                    "/otp/order/send"
-                );
-
-
-            setOtpSent(true);
-
-            setMaskedEmail(
-                response.data.email
-            );
-
-
-            setMessage(
-                "OTP has been sent to your Gmail."
-            );
-
-
-        } catch (error) {
-
-            console.error(
-                error
-            );
-
-
-            setError(
-
-                error.response
-                    ?.data
-                    ?.message ||
-
-                "Unable to send OTP."
-
-            );
-
-        } finally {
-
-            setSendingOTP(false);
-        }
-    }
-
-
-    /*
-    =========================================
-    VERIFY OTP
-    =========================================
-    */
-
-    async function verifyOTP() {
-
-        if (
-            !/^\d{6}$/.test(
-                otp
-            )
-        ) {
-
-            setError(
-                "Enter the 6-digit OTP."
-            );
-
-            return;
-        }
-
-
-        try {
-
-            setVerifyingOTP(true);
-
-            setError("");
-
-            setMessage("");
-
-
-            await api.post(
-
-                "/otp/order/verify",
-
-                {
-                    otp
-                }
-
-            );
-
-
-            setOtpVerified(
-                true
-            );
-
-
-            setMessage(
-                "Email verified successfully."
-            );
-
-
-        } catch (error) {
-
-            console.error(
-                error
-            );
-
-
-            setError(
-
-                error.response
-                    ?.data
-                    ?.message ||
-
-                "Incorrect OTP."
-
-            );
-
-        } finally {
-
-            setVerifyingOTP(false);
-        }
-    }
-
-
-    /*
-    =========================================
-    PLACE ORDER
-    =========================================
-    */
-
-    async function placeOrder() {
+        setSendingOTP(true);
 
         setError("");
 
         setMessage("");
 
 
-        if (
-            !form.deliveryAddress ||
-            !form.deliveryCity ||
-            !form.deliveryState ||
-            !form.deliveryPincode
-        ) {
-
-            setError(
-                "Please complete all delivery information."
+        const response =
+            await api.post(
+                "/otp/order/send"
             );
 
-            return;
-        }
+
+        console.log(
+            "OTP RESPONSE:",
+            response.data
+        );
 
 
         if (
-            !otpVerified
+            !response.data?.success
         ) {
 
-            setError(
-                "Please verify your email OTP first."
+            throw new Error(
+                response.data?.message ||
+                "Unable to send OTP."
             );
 
-            return;
         }
 
 
-        try {
+        setOtpSent(true);
 
-            setPlacingOrder(true);
+        setOtpVerified(false);
 
+        setOtp("");
 
-            const response =
-                await api.post(
-
-                    "/orders",
-
-                    {
-
-                        deliveryAddress:
-                            form.deliveryAddress,
-
-                        deliveryCity:
-                            form.deliveryCity,
-
-                        deliveryState:
-                            form.deliveryState,
-
-                        deliveryPincode:
-                            form.deliveryPincode,
-
-                        deliveryCharge:
-                            0
-
-                    }
-
-                );
+        setMaskedEmail(
+            response.data?.email || ""
+        );
 
 
-            const referenceNo =
-                response.data
-                    .order
-                    .referenceNo;
+        setMessage(
+            response.data?.message ||
+            "OTP has been sent to your registered email."
+        );
 
 
-            navigate(
-                `/order-success/${referenceNo}`
-            );
+    } catch (error) {
+
+        console.error(
+            "SEND ORDER OTP ERROR:",
+            error
+        );
 
 
-        } catch (error) {
-
-            console.error(
-                "PLACE ORDER ERROR:",
-                error
-            );
+        console.error(
+            "OTP RESPONSE:",
+            error.response?.data
+        );
 
 
-            setError(
+        setError(
+            error.response
+                ?.data
+                ?.message ||
+            error.message ||
+            "Unable to send OTP."
+        );
 
-                error.response
-                    ?.data
-                    ?.message ||
 
-                "Unable to place order."
+    } finally {
 
-            );
+        setSendingOTP(false);
 
-        } finally {
+    }
 
-            setPlacingOrder(false);
-        }
+}
+/* =========================================
+   VERIFY OTP
+========================================= */
+
+async function verifyOTP() {
+
+    if (
+        !/^\d{6}$/.test(
+            otp
+        )
+    ) {
+
+        setError(
+            "Enter the 6-digit OTP."
+        );
+
+        return;
+
     }
 
 
-    if (loading) {
+    try {
+
+        setVerifyingOTP(true);
+
+        setError("");
+
+        setMessage("");
+
+
+        const response =
+            await api.post(
+                "/otp/order/verify",
+                {
+                    otp: otp
+                }
+            );
+
+
+        console.log(
+            "VERIFY OTP RESPONSE:",
+            response.data
+        );
+
+
+        if (
+            !response.data?.success
+        ) {
+
+            throw new Error(
+                response.data?.message ||
+                "OTP verification failed."
+            );
+
+        }
+
+
+        setOtpVerified(true);
+
+
+        setMessage(
+            response.data?.message ||
+            "Email verified successfully."
+        );
+
+
+    } catch (error) {
+
+        console.error(
+            "VERIFY ORDER OTP ERROR:",
+            error
+        );
+
+
+        console.error(
+            "VERIFY OTP RESPONSE:",
+            error.response?.data
+        );
+
+
+        setOtpVerified(false);
+
+
+        setError(
+            error.response
+                ?.data
+                ?.message ||
+            error.message ||
+            "Incorrect OTP."
+        );
+
+
+    } finally {
+
+        setVerifyingOTP(false);
+
+    }
+
+}
+async function placeOrder() {
+
+    setError("");
+    setMessage("");
+
+    /* =====================================
+       DELIVERY VALIDATION
+    ===================================== */
+
+    const address =
+        form.deliveryAddress.trim();
+
+    const city =
+        form.deliveryCity.trim();
+
+    const state =
+        form.deliveryState.trim();
+
+    const pincode =
+        form.deliveryPincode.trim();
+
+
+    if (
+        !address ||
+        !city ||
+        !state ||
+        !pincode
+    ) {
+
+        setError(
+            "Please complete all delivery information."
+        );
+
+        return;
+
+    }
+
+
+    /* =====================================
+       PINCODE VALIDATION
+    ===================================== */
+
+    if (
+        !/^\d{6}$/.test(
+            pincode
+        )
+    ) {
+
+        setError(
+            "Please enter a valid 6-digit pincode."
+        );
+
+        return;
+
+    }
+
+
+    /* =====================================
+       OTP VALIDATION
+    ===================================== */
+
+    if (
+        !otpVerified
+    ) {
+
+        setError(
+            "Please verify your email OTP first."
+        );
+
+        return;
+
+    }
+
+
+    /* =====================================
+       CART VALIDATION
+    ===================================== */
+
+    if (
+        !cart ||
+        !Array.isArray(cart.items) ||
+        cart.items.length === 0
+    ) {
+
+        setError(
+            "Your cart is empty."
+        );
+
+        return;
+
+    }
+
+
+    try {
+
+        setPlacingOrder(true);
+
+        console.log(
+            "PLACING ORDER..."
+        );
+
+
+        const response =
+            await api.post(
+                "/orders",
+                {
+                    deliveryAddress:
+                        address,
+
+                    deliveryCity:
+                        city,
+
+                    deliveryState:
+                        state,
+
+                    deliveryPincode:
+                        pincode,
+
+                    deliveryCharge:
+                        0
+                }
+            );
+
+
+        console.log(
+            "CREATE ORDER RESPONSE:",
+            response.data
+        );
+
+
+        if (
+            !response.data?.success
+        ) {
+
+            throw new Error(
+                response.data?.message ||
+                "Unable to create order."
+            );
+
+        }
+
+
+        const referenceNo =
+            response.data
+                ?.order
+                ?.referenceNo;
+
+
+        if (
+            !referenceNo
+        ) {
+
+            throw new Error(
+                "Order created but reference number was not returned."
+            );
+
+        }
+
+
+        /* =====================================
+           SUCCESS
+        ===================================== */
+
+        navigate(
+            `/order-success/${referenceNo}`
+        );
+
+
+    } catch (error) {
+
+        console.error(
+            "PLACE ORDER ERROR:",
+            error
+        );
+
+
+        console.error(
+            "ORDER RESPONSE:",
+            error.response?.data
+        );
+
+
+        const backendMessage =
+            error.response
+                ?.data
+                ?.message;
+
+
+        setError(
+            backendMessage ||
+            error.message ||
+            "Unable to place order."
+        );
+
+
+    } finally {
+
+        setPlacingOrder(false);
+
+    }
+
+}
+    if (
+        loading
+    ) {
 
         return (
 
-            <div className="checkout-loading">
+            <div
+                className="checkout-loading"
+            >
 
                 Loading checkout...
 
             </div>
 
         );
+
     }
 
 
-    if (!cart) {
+    /* =========================================
+       CART NOT AVAILABLE
+    ========================================= */
+
+    if (
+        !cart
+    ) {
 
         return null;
+
     }
 
+
+    /* =========================================
+       UI
+    ========================================= */
 
     return (
 
         <div className="checkout-page">
 
 
-            {/* HEADER */}
+            {/* =================================
+                HEADER
+            ================================= */}
 
-            <header className="checkout-header">
+            <header
+                className="checkout-header"
+            >
 
                 <button
+                    type="button"
                     className="checkout-back-button"
                     onClick={() =>
                         navigate(
@@ -487,7 +786,9 @@ function Checkout() {
                 </button>
 
 
-                <div className="checkout-brand">
+                <div
+                    className="checkout-brand"
+                >
 
                     <ShoppingBag
                         size={18}
@@ -498,7 +799,9 @@ function Checkout() {
                 </div>
 
 
-                <div className="secure-checkout">
+                <div
+                    className="secure-checkout"
+                >
 
                     <ShieldCheck
                         size={15}
@@ -511,10 +814,18 @@ function Checkout() {
             </header>
 
 
-            <main className="checkout-main">
+            <main
+                className="checkout-main"
+            >
 
 
-                <div className="checkout-title">
+                {/* =================================
+                    TITLE
+                ================================= */}
+
+                <div
+                    className="checkout-title"
+                >
 
                     <p>
                         SECURE CHECKOUT
@@ -532,43 +843,69 @@ function Checkout() {
                 </div>
 
 
+                {/* =================================
+                    ERROR
+                ================================= */}
+
                 {error && (
 
-                    <div className="checkout-error">
+                    <div
+                        className="checkout-error"
+                    >
+
                         {error}
+
                     </div>
 
                 )}
 
 
+                {/* =================================
+                    SUCCESS MESSAGE
+                ================================= */}
+
                 {message && (
 
-                    <div className="checkout-success">
+                    <div
+                        className="checkout-success"
+                    >
+
                         <CheckCircle
                             size={16}
                         />
 
                         {message}
+
                     </div>
 
                 )}
 
 
-                <div className="checkout-layout">
+                <div
+                    className="checkout-layout"
+                >
 
 
                     {/* =================================
                         LEFT
                     ================================= */}
 
-                    <section className="checkout-left">
+                    <section
+                        className="checkout-left"
+                    >
 
 
-                        {/* DELIVERY */}
+                        {/* =================================
+                            DELIVERY
+                        ================================= */}
 
-                        <div className="checkout-card">
+                        <div
+                            className="checkout-card"
+                        >
 
-                            <div className="checkout-card-title">
+                            <div
+                                className="checkout-card-title"
+                            >
 
                                 <MapPin
                                     size={18}
@@ -590,8 +927,9 @@ function Checkout() {
                             </div>
 
 
-                            <div className="checkout-form">
-
+                            <div
+                                className="checkout-form"
+                            >
 
                                 <label>
 
@@ -612,7 +950,9 @@ function Checkout() {
                                 </label>
 
 
-                                <div className="checkout-form-row">
+                                <div
+                                    className="checkout-form-row"
+                                >
 
                                     <label>
 
@@ -666,6 +1006,7 @@ function Checkout() {
                                         }
                                         placeholder="Pincode"
                                         maxLength="10"
+                                        inputMode="numeric"
                                     />
 
                                 </label>
@@ -675,11 +1016,17 @@ function Checkout() {
                         </div>
 
 
-                        {/* OTP */}
+                        {/* =================================
+                            EMAIL OTP
+                        ================================= */}
 
-                        <div className="checkout-card">
+                        <div
+                            className="checkout-card"
+                        >
 
-                            <div className="checkout-card-title">
+                            <div
+                                className="checkout-card-title"
+                            >
 
                                 <Mail
                                     size={18}
@@ -703,7 +1050,9 @@ function Checkout() {
 
                             {!otpSent ? (
 
-                                <div className="otp-start">
+                                <div
+                                    className="otp-start"
+                                >
 
                                     <p>
                                         An OTP will be sent
@@ -713,6 +1062,7 @@ function Checkout() {
 
 
                                     <button
+                                        type="button"
                                         className="checkout-primary-button"
                                         disabled={
                                             sendingOTP
@@ -736,23 +1086,26 @@ function Checkout() {
 
                             ) : (
 
-                                <div className="otp-area">
+                                <div
+                                    className="otp-area"
+                                >
 
-
-                                    <div className="otp-email">
+                                    <div
+                                        className="otp-email"
+                                    >
 
                                         OTP sent to:
 
                                         <strong>
-                                            {
-                                                maskedEmail
-                                            }
+                                            {maskedEmail}
                                         </strong>
 
                                     </div>
 
 
-                                    <div className="otp-input-row">
+                                    <div
+                                        className="otp-input-row"
+                                    >
 
                                         <input
                                             type="text"
@@ -767,7 +1120,9 @@ function Checkout() {
                                             onChange={
                                                 event =>
                                                     setOtp(
-                                                        event.target.value
+                                                        event
+                                                            .target
+                                                            .value
                                                             .replace(
                                                                 /\D/g,
                                                                 ""
@@ -781,9 +1136,11 @@ function Checkout() {
                                         {!otpVerified && (
 
                                             <button
+                                                type="button"
                                                 className="verify-otp-button"
                                                 disabled={
-                                                    verifyingOTP
+                                                    verifyingOTP ||
+                                                    otp.length !== 6
                                                 }
                                                 onClick={
                                                     verifyOTP
@@ -803,7 +1160,9 @@ function Checkout() {
 
                                     {otpVerified && (
 
-                                        <div className="otp-verified">
+                                        <div
+                                            className="otp-verified"
+                                        >
 
                                             <CheckCircle
                                                 size={16}
@@ -819,6 +1178,7 @@ function Checkout() {
                                     {!otpVerified && (
 
                                         <button
+                                            type="button"
                                             className="resend-otp-button"
                                             disabled={
                                                 sendingOTP
@@ -827,7 +1187,11 @@ function Checkout() {
                                                 sendOTP
                                             }
                                         >
-                                            Resend OTP
+
+                                            {sendingOTP
+                                                ? "Sending..."
+                                                : "Resend OTP"}
+
                                         </button>
 
                                     )}
@@ -838,7 +1202,6 @@ function Checkout() {
 
                         </div>
 
-
                     </section>
 
 
@@ -846,8 +1209,9 @@ function Checkout() {
                         RIGHT SUMMARY
                     ================================= */}
 
-                    <aside className="checkout-summary">
-
+                    <aside
+                        className="checkout-summary"
+                    >
 
                         <p>
                             ORDER SUMMARY
@@ -859,69 +1223,123 @@ function Checkout() {
                         </h2>
 
 
-                        <div className="checkout-products">
+                        {/* =================================
+                            PRODUCTS
+                        ================================= */}
 
+                        <div
+                            className="checkout-products"
+                        >
 
                             {cart.items.map(
-                                item => (
+                                item => {
 
-                                    <div
-                                        className="checkout-product"
-                                        key={
-                                            item.id
-                                        }
-                                    >
+                                    const quantity =
+                                        Number(
+                                            item.quantity ||
+                                            0
+                                        );
 
-                                        <div>
+
+                                    const unitPrice =
+                                        Number(
+                                            item.unit_price ||
+                                            0
+                                        );
+
+
+                                    const itemSubtotal =
+                                        getItemSubtotal(
+                                            item
+                                        );
+
+
+                                    return (
+
+                                        <div
+                                            className="checkout-product"
+                                            key={
+                                                item.id
+                                            }
+                                        >
+
+                                            <div>
+
+                                                <strong>
+                                                    {
+                                                        item.product_name
+                                                    }
+                                                </strong>
+
+
+                                                <span>
+
+                                                    {
+                                                        formatQuantity(
+                                                            quantity
+                                                        )
+                                                    }
+
+                                                    {" "}
+
+                                                    {
+                                                        item.unit
+                                                    }
+
+                                                    {" × ₹"}
+
+                                                    {
+                                                        unitPrice.toLocaleString(
+                                                            "en-IN",
+                                                            {
+                                                                minimumFractionDigits: 2,
+                                                                maximumFractionDigits: 2
+                                                            }
+                                                        )
+                                                    }
+
+                                                </span>
+
+                                            </div>
+
 
                                             <strong>
-                                                {
-                                                    item.product_name
-                                                }
-                                            </strong>
 
-                                            <span>
-                                                {
-                                                    item.quantity
-                                                }{" "}
-                                                {
-                                                    item.unit
-                                                }
-                                                {" × "}
                                                 ₹
-                                                {Number(
-                                                    item.unit_price
-                                                ).toLocaleString(
-                                                    "en-IN"
-                                                )}
-                                            </span>
+                                                {
+                                                    itemSubtotal.toLocaleString(
+                                                        "en-IN",
+                                                        {
+                                                            minimumFractionDigits: 2,
+                                                            maximumFractionDigits: 2
+                                                        }
+                                                    )
+                                                }
+
+                                            </strong>
 
                                         </div>
 
+                                    );
 
-                                        <strong>
-
-                                            ₹
-                                            {Number(
-                                                item.subtotal
-                                            ).toLocaleString(
-                                                "en-IN"
-                                            )}
-
-                                        </strong>
-
-                                    </div>
-
-                                )
+                                }
                             )}
 
                         </div>
 
 
-                        <div className="checkout-divider" />
+                        <div
+                            className="checkout-divider"
+                        />
 
 
-                        <div className="checkout-summary-line">
+                        {/* =================================
+                            SUBTOTAL
+                        ================================= */}
+
+                        <div
+                            className="checkout-summary-line"
+                        >
 
                             <span>
                                 Subtotal
@@ -930,10 +1348,12 @@ function Checkout() {
                             <strong>
 
                                 ₹
-                                {Number(
-                                    cart.totalAmount
-                                ).toLocaleString(
-                                    "en-IN"
+                                {finalTotal.toLocaleString(
+                                    "en-IN",
+                                    {
+                                        minimumFractionDigits: 2,
+                                        maximumFractionDigits: 2
+                                    }
                                 )}
 
                             </strong>
@@ -941,7 +1361,13 @@ function Checkout() {
                         </div>
 
 
-                        <div className="checkout-summary-line">
+                        {/* =================================
+                            DELIVERY
+                        ================================= */}
+
+                        <div
+                            className="checkout-summary-line"
+                        >
 
                             <span>
                                 Delivery
@@ -954,10 +1380,18 @@ function Checkout() {
                         </div>
 
 
-                        <div className="checkout-divider" />
+                        <div
+                            className="checkout-divider"
+                        />
 
 
-                        <div className="checkout-total">
+                        {/* =================================
+                            TOTAL
+                        ================================= */}
+
+                        <div
+                            className="checkout-total"
+                        >
 
                             <span>
                                 Total
@@ -966,10 +1400,12 @@ function Checkout() {
                             <strong>
 
                                 ₹
-                                {Number(
-                                    cart.totalAmount
-                                ).toLocaleString(
-                                    "en-IN"
+                                {finalTotal.toLocaleString(
+                                    "en-IN",
+                                    {
+                                        minimumFractionDigits: 2,
+                                        maximumFractionDigits: 2
+                                    }
                                 )}
 
                             </strong>
@@ -977,7 +1413,12 @@ function Checkout() {
                         </div>
 
 
+                        {/* =================================
+                            PLACE ORDER
+                        ================================= */}
+
                         <button
+                            type="button"
                             className="place-order-button"
                             disabled={
                                 placingOrder ||
@@ -1001,7 +1442,9 @@ function Checkout() {
 
                         {!otpVerified && (
 
-                            <small className="checkout-warning">
+                            <small
+                                className="checkout-warning"
+                            >
 
                                 Verify your email before
                                 placing the order.
@@ -1017,7 +1460,9 @@ function Checkout() {
             </main>
 
         </div>
+
     );
+
 }
 
 

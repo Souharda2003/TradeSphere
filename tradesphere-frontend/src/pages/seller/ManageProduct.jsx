@@ -4,56 +4,48 @@ import {
 } from "react";
 
 import {
-    Package,
-    Boxes,
-    Plus,
-    Minus,
-    ArrowLeft,
-    RefreshCw,
-    Tag,
-    MapPin
-} from "lucide-react";
-
-import {
     useNavigate,
     useParams
 } from "react-router-dom";
+
+import {
+    Package,
+    Save,
+    RefreshCw
+} from "lucide-react";
 
 import api from "../../services/api";
 
 import BackButton
     from "../../components/BackButton";
 
+import LogoutButton
+    from "../../components/LogoutButton";
+
 import "../../styles/manage-product.css";
 
 
 function ManageProduct() {
 
+    const {
+        id
+    } = useParams();
+
+
     const navigate =
         useNavigate();
-
-    const { id } =
-        useParams();
 
 
     const [product, setProduct] =
         useState(null);
 
 
-    const [images, setImages] =
-        useState([]);
-
-
     const [loading, setLoading] =
         useState(true);
 
 
-    const [stockLoading, setStockLoading] =
+    const [saving, setSaving] =
         useState(false);
-
-
-    const [stockAmount, setStockAmount] =
-        useState("");
 
 
     const [message, setMessage] =
@@ -64,11 +56,25 @@ function ManageProduct() {
         useState("");
 
 
-    /*
-    ========================================
-    LOAD PRODUCT
-    ========================================
-    */
+    const [form, setForm] =
+        useState({
+
+            product_name: "",
+
+            sku: "",
+
+            unit: "",
+
+            price: "",
+
+            minimum_order_quantity: "",
+
+            status: "ACTIVE",
+
+            available_quantity: ""
+
+        });
+
 
     useEffect(() => {
 
@@ -85,26 +91,59 @@ function ManageProduct() {
 
             setError("");
 
+
             const response =
-                await api.get(
-                    `/products/seller/${id}`
+                await api.put(
+                    `/seller/products/${id}`
                 );
 
 
+            const data =
+                response.data.product;
+
+
             setProduct(
-                response.data.product
+                data
             );
 
 
-            setImages(
-                response.data.images || []
-            );
+            setForm({
+
+                product_name:
+                    data.product_name ||
+                    "",
+
+                sku:
+                    data.sku ||
+                    "",
+
+                unit:
+                    data.unit ||
+                    "",
+
+                price:
+                    data.price ??
+                    "",
+
+                minimum_order_quantity:
+                    data.minimum_order_quantity ??
+                    "",
+
+                status:
+                    data.status ||
+                    "ACTIVE",
+
+                available_quantity:
+                    data.available_quantity ??
+                    ""
+
+            });
 
 
         } catch (error) {
 
             console.error(
-                "LOAD PRODUCT ERROR:",
+                "MANAGE PRODUCT ERROR:",
                 error
             );
 
@@ -122,105 +161,106 @@ function ManageProduct() {
         } finally {
 
             setLoading(false);
+
         }
+
     }
 
 
-    /*
-    ========================================
-    UPDATE STOCK
-    ========================================
-    */
-
-    async function updateStock(
-        operation
+    function handleChange(
+        event
     ) {
 
-        const amount =
-            Number(stockAmount);
+        const {
+            name,
+            value
+        } = event.target;
 
 
-        if (
-            !amount ||
-            amount <= 0
-        ) {
+        setForm(
+            previous => ({
 
-            setError(
-                "Enter a valid stock quantity."
-            );
+                ...previous,
 
-            return;
-        }
+                [name]:
+                    value
+
+            })
+        );
+
+    }
 
 
-        setStockLoading(true);
+    async function handleSave(
+        event
+    ) {
 
-        setError("");
-
-        setMessage("");
+        event.preventDefault();
 
 
         try {
 
-            const response =
-                await api.patch(
+            setSaving(true);
 
-                    `/products/seller/${id}/stock`,
+            setMessage("");
+
+            setError("");
+
+
+            const response =
+                await api.put(
+
+                    `/seller/products/${id}`,
 
                     {
-                        quantity:
-                            amount,
 
-                        operation:
-                            operation
+                        product_name:
+                            form.product_name,
+
+                        sku:
+                            form.sku,
+
+                        unit:
+                            form.unit,
+
+                        price:
+                            Number(
+                                form.price
+                            ),
+
+                        minimum_order_quantity:
+                            Number(
+                                form.minimum_order_quantity
+                            ),
+
+                        status:
+                            form.status,
+
+                        available_quantity:
+                            Number(
+                                form.available_quantity
+                            )
+
                     }
 
                 );
 
 
-            /*
-            Update screen immediately
-            */
-
-            setProduct(
-                previous => ({
-
-                    ...previous,
-
-                    quantity:
-                        response.data.quantity,
-
-                    reserved_quantity:
-                        response.data.reservedQuantity,
-
-                    available_quantity:
-                        response.data.availableQuantity,
-
-                    status:
-                        response.data.status
-
-                })
-            );
-
-
-            setStockAmount("");
-
-
             setMessage(
 
-                operation === "ADD"
-
-                    ? "Stock added successfully."
-
-                    : "Stock removed successfully."
+                response.data.message ||
+                "Product updated successfully."
 
             );
+
+
+            await loadProduct();
 
 
         } catch (error) {
 
             console.error(
-                "UPDATE STOCK ERROR:",
+                "UPDATE PRODUCT ERROR:",
                 error
             );
 
@@ -231,22 +271,18 @@ function ManageProduct() {
                     ?.data
                     ?.message ||
 
-                "Unable to update stock."
+                "Unable to update product."
 
             );
 
         } finally {
 
-            setStockLoading(false);
+            setSaving(false);
+
         }
+
     }
 
-
-    /*
-    ========================================
-    LOADING
-    ========================================
-    */
 
     if (loading) {
 
@@ -255,8 +291,8 @@ function ManageProduct() {
             <div className="manage-product-loading">
 
                 <RefreshCw
-                    size={22}
-                    className="spin"
+                    size={20}
+                    className="manage-product-spin"
                 />
 
                 Loading product...
@@ -264,43 +300,7 @@ function ManageProduct() {
             </div>
 
         );
-    }
 
-
-    /*
-    ========================================
-    PRODUCT NOT FOUND
-    ========================================
-    */
-
-    if (
-        !product
-    ) {
-
-        return (
-
-            <div className="manage-product-loading">
-
-                <Package size={25} />
-
-                <span>
-                    Product not found.
-                </span>
-
-                <button
-                    className="secondary-button"
-                    onClick={() =>
-                        navigate(
-                            "/seller/products"
-                        )
-                    }
-                >
-                    Back to Products
-                </button>
-
-            </div>
-
-        );
     }
 
 
@@ -309,596 +309,364 @@ function ManageProduct() {
         <div className="manage-product-page">
 
 
-            {/* =================================
-                HEADER
-            ================================= */}
-
             <header className="manage-product-header">
 
                 <BackButton />
 
+                <div className="manage-product-brand">
 
-                <div className="manage-product-header-title">
+                    <Package
+                        size={18}
+                    />
 
-                    <div className="manage-product-logo">
-
-                        <Package size={19} />
-
-                    </div>
-
-<button
-    className="manage-product-button"
-    onClick={() =>
-        navigate(
-            `/seller/products/${product.id}`
-        )
-    }
->
-    <Edit3 size={15} />
-
-    Manage Product
-</button>
+                    Manage Product
 
                 </div>
 
 
-                <button
-                    className="secondary-button"
-                    onClick={() =>
-                        navigate(
-                            "/seller/products"
-                        )
-                    }
-                >
-
-                    <ArrowLeft size={16} />
-
-                    My Products
-
-                </button>
+                <LogoutButton />
 
             </header>
 
 
-            {/* =================================
-                MAIN
-            ================================= */}
-
             <main className="manage-product-main">
 
 
-                {/* =================================
-                    ERROR / SUCCESS
-                ================================= */}
+                <div className="manage-product-heading">
 
-                {error && (
+                    <p>
+                        SELLER PRODUCT MANAGEMENT
+                    </p>
 
-                    <div className="manage-error">
-                        {error}
-                    </div>
+                    <h1>
+                        Manage Product
+                    </h1>
 
-                )}
+                    <span>
+                        Update product details,
+                        pricing and stock.
+                    </span>
+
+                </div>
 
 
                 {message && (
 
                     <div className="manage-success">
+
                         {message}
+
                     </div>
 
                 )}
 
 
-                {/* =================================
-                    PRODUCT TOP
-                ================================= */}
+                {error && (
 
-                <section className="product-overview">
+                    <div className="manage-error">
+
+                        {error}
+
+                    </div>
+
+                )}
 
 
-                    {/* IMAGE */}
+                <form
+                    className="manage-product-card"
+                    onSubmit={
+                        handleSave
+                    }
+                >
 
-                    <div className="manage-product-image">
 
-                        {images.length > 0 ? (
+                    <div className="manage-product-preview">
 
-                            <img
-                                src={
-                                    `http://localhost:5000${images[0].image_url}`
-                                }
+                        <div className="manage-product-icon">
 
-                                alt={
-                                    product.product_name
-                                }
+                            <Package
+                                size={30}
                             />
 
-                        ) : (
-
-                            <Package size={50} />
-
-                        )}
-
-                    </div>
-
-
-                    {/* INFORMATION */}
-
-                    <div className="product-overview-info">
-
-                        <div className="product-category">
-
-                            {product.category}
-
                         </div>
 
-
-                        <h1>
-                            {product.product_name}
-                        </h1>
-
-
-                        <p className="product-description">
-
-                            {product.description ||
-                                "No product description available."}
-
-                        </p>
-
-
-                        <div className="product-meta">
-
-                            <span>
-
-                                <Tag size={13} />
-
-                                SKU:
-                                {" "}
-                                {product.sku}
-
-                            </span>
-
-
-                            <span>
-
-                                <MapPin size={13} />
-
-                                {product.origin_country}
-
-                            </span>
-
-
-                            <span>
-
-                                Unit:
-                                {" "}
-                                {product.unit}
-
-                            </span>
-
-                        </div>
-
-
-                        <div className="manage-product-price">
-
-                            ₹
-                            {Number(
-                                product.price
-                            ).toLocaleString(
-                                "en-IN"
-                            )}
-
-                            <small>
-                                / {product.unit}
-                            </small>
-
-                        </div>
-
-                    </div>
-
-                </section>
-
-
-                {/* =================================
-                    STOCK OVERVIEW
-                ================================= */}
-
-                <section className="inventory-section">
-
-
-                    <div className="section-title">
 
                         <div>
-
-                            <p>
-                                INVENTORY
-                            </p>
-
-                            <h2>
-                                Stock Management
-                            </h2>
-
-                        </div>
-
-
-                        <span
-                            className={
-                                product.status ===
-                                "ACTIVE"
-
-                                    ? "stock-status active"
-
-                                    : "stock-status out"
-                            }
-                        >
-                            {product.status}
-                        </span>
-
-                    </div>
-
-
-                    <div className="inventory-cards">
-
-
-                        {/* TOTAL */}
-
-                        <div className="inventory-card">
-
-                            <div className="inventory-icon">
-
-                                <Package
-                                    size={20}
-                                />
-
-                            </div>
-
-
-                            <span>
-                                Total Stock
-                            </span>
-
-
-                            <strong>
-
-                                {Number(
-                                    product.quantity
-                                ).toLocaleString(
-                                    "en-IN"
-                                )}
-
-                            </strong>
-
-
-                            <small>
-                                {product.unit}
-                            </small>
-
-                        </div>
-
-
-                        {/* RESERVED */}
-
-                        <div className="inventory-card">
-
-                            <div className="inventory-icon">
-
-                                <Boxes
-                                    size={20}
-                                />
-
-                            </div>
-
-
-                            <span>
-                                Reserved
-                            </span>
-
-
-                            <strong>
-
-                                {Number(
-                                    product.reserved_quantity
-                                ).toLocaleString(
-                                    "en-IN"
-                                )}
-
-                            </strong>
-
-
-                            <small>
-                                {product.unit}
-                            </small>
-
-                        </div>
-
-
-                        {/* AVAILABLE */}
-
-                        <div className="inventory-card available">
-
-                            <div className="inventory-icon">
-
-                                <Package
-                                    size={20}
-                                />
-
-                            </div>
-
-
-                            <span>
-                                Available
-                            </span>
-
-
-                            <strong>
-
-                                {Number(
-                                    product.available_quantity
-                                ).toLocaleString(
-                                    "en-IN"
-                                )}
-
-                            </strong>
-
-
-                            <small>
-                                {product.unit}
-                            </small>
-
-                        </div>
-
-                    </div>
-
-
-                    {/* =================================
-                        STOCK UPDATE
-                    ================================= */}
-
-                    <div className="stock-update-box">
-
-
-                        <div className="stock-update-heading">
-
-                            <h3>
-                                Update Stock
-                            </h3>
-
-                            <p>
-                                Add newly received stock
-                                or remove available stock.
-                            </p>
-
-                        </div>
-
-
-                        <div className="stock-update-form">
-
-
-                            <div className="stock-amount">
-
-                                <label>
-                                    Quantity
-                                </label>
-
-                                <div className="quantity-input">
-
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        step="0.001"
-                                        value={
-                                            stockAmount
-                                        }
-                                        onChange={
-                                            event =>
-                                                setStockAmount(
-                                                    event.target.value
-                                                )
-                                        }
-                                        placeholder="Enter quantity"
-                                    />
-
-                                    <span>
-                                        {product.unit}
-                                    </span>
-
-                                </div>
-
-                            </div>
-
-
-                            <div className="stock-buttons">
-
-
-                                <button
-                                    type="button"
-                                    className="stock-add-button"
-                                    disabled={
-                                        stockLoading
-                                    }
-                                    onClick={() =>
-                                        updateStock(
-                                            "ADD"
-                                        )
-                                    }
-                                >
-
-                                    <Plus
-                                        size={17}
-                                    />
-
-                                    {stockLoading
-                                        ? "Updating..."
-                                        : "Add Stock"}
-
-                                </button>
-
-
-                                <button
-                                    type="button"
-                                    className="stock-remove-button"
-                                    disabled={
-                                        stockLoading
-                                    }
-                                    onClick={() =>
-                                        updateStock(
-                                            "REMOVE"
-                                        )
-                                    }
-                                >
-
-                                    <Minus
-                                        size={17}
-                                    />
-
-                                    {stockLoading
-                                        ? "Updating..."
-                                        : "Remove Stock"}
-
-                                </button>
-
-                            </div>
-
-                        </div>
-
-                    </div>
-
-                </section>
-
-
-                {/* =================================
-                    PRODUCT DETAILS
-                ================================= */}
-
-                <section className="product-details-section">
-
-                    <div className="section-title">
-
-                        <div>
-
-                            <p>
-                                PRODUCT INFORMATION
-                            </p>
-
-                            <h2>
-                                Product Details
-                            </h2>
-
-                        </div>
-
-                    </div>
-
-
-                    <div className="details-grid">
-
-
-                        <div className="detail-item">
-
-                            <span>
-                                Product Name
-                            </span>
-
-                            <strong>
-                                {product.product_name}
-                            </strong>
-
-                        </div>
-
-
-                        <div className="detail-item">
-
-                            <span>
-                                Category
-                            </span>
-
-                            <strong>
-                                {product.category}
-                            </strong>
-
-                        </div>
-
-
-                        <div className="detail-item">
-
-                            <span>
-                                SKU
-                            </span>
-
-                            <strong>
-                                {product.sku}
-                            </strong>
-
-                        </div>
-
-
-                        <div className="detail-item">
-
-                            <span>
-                                Unit
-                            </span>
-
-                            <strong>
-                                {product.unit}
-                            </strong>
-
-                        </div>
-
-
-                        <div className="detail-item">
-
-                            <span>
-                                Price
-                            </span>
-
-                            <strong>
-                                ₹
-                                {Number(
-                                    product.price
-                                ).toLocaleString(
-                                    "en-IN"
-                                )}
-                            </strong>
-
-                        </div>
-
-
-                        <div className="detail-item">
-
-                            <span>
-                                Minimum Order
-                            </span>
 
                             <strong>
                                 {
-                                    product.minimum_order_quantity
-                                }{" "}
-                                {product.unit}
+                                    product?.product_name
+                                }
                             </strong>
+
+                            <span>
+                                SKU:
+                                {" "}
+                                {
+                                    product?.sku ||
+                                    "N/A"
+                                }
+                            </span>
+
+                        </div>
+
+                    </div>
+
+
+                    <div className="manage-form-grid">
+
+
+                        <div className="manage-field">
+
+                            <label>
+                                Product Name
+                            </label>
+
+                            <input
+                                name="product_name"
+                                value={
+                                    form.product_name
+                                }
+                                onChange={
+                                    handleChange
+                                }
+                                required
+                            />
 
                         </div>
 
 
-                        <div className="detail-item">
+                        <div className="manage-field">
 
-                            <span>
-                                Origin
-                            </span>
+                            <label>
+                                SKU
+                            </label>
 
-                            <strong>
-                                {product.origin_country}
-                            </strong>
+                            <input
+                                name="sku"
+                                value={
+                                    form.sku
+                                }
+                                onChange={
+                                    handleChange
+                                }
+                                required
+                            />
+
+                        </div>
+
+
+                        <div className="manage-field">
+
+                            <label>
+                                Unit
+                            </label>
+
+                            <select
+                                name="unit"
+                                value={
+                                    form.unit
+                                }
+                                onChange={
+                                    handleChange
+                                }
+                                required
+                            >
+
+                                <option value="">
+                                    Select Unit
+                                </option>
+
+                                <option value="KG">
+                                    KG
+                                </option>
+
+                                <option value="TON">
+                                    TON
+                                </option>
+
+                                <option value="GM">
+                                    GM
+                                </option>
+
+                                <option value="BAG">
+                                    BAG
+                                </option>
+
+                                <option value="PCS">
+                                    PCS
+                                </option>
+
+                            </select>
+
+                        </div>
+
+
+                        <div className="manage-field">
+
+                            <label>
+                                Price
+                            </label>
+
+                            <input
+                                type="number"
+                                name="price"
+                                min="0"
+                                step="0.01"
+                                value={
+                                    form.price
+                                }
+                                onChange={
+                                    handleChange
+                                }
+                                required
+                            />
+
+                        </div>
+
+
+                        <div className="manage-field">
+
+                            <label>
+                                Minimum Order Quantity
+                            </label>
+
+                            <input
+                                type="number"
+                                name="minimum_order_quantity"
+                                min="1"
+                                value={
+                                    form.minimum_order_quantity
+                                }
+                                onChange={
+                                    handleChange
+                                }
+                                required
+                            />
+
+                        </div>
+
+
+                        <div className="manage-field">
+
+                            <label>
+                                Available Stock
+                            </label>
+
+                            <input
+                                type="number"
+                                name="available_quantity"
+                                min="0"
+                                step="0.01"
+                                value={
+                                    form.available_quantity
+                                }
+                                onChange={
+                                    handleChange
+                                }
+                                required
+                            />
+
+                        </div>
+
+
+                        <div className="manage-field">
+
+                            <label>
+                                Product Status
+                            </label>
+
+                            <select
+                                name="status"
+                                value={
+                                    form.status
+                                }
+                                onChange={
+                                    handleChange
+                                }
+                            >
+
+                                <option value="ACTIVE">
+                                    Active
+                                </option>
+
+                                <option value="INACTIVE">
+                                    Inactive
+                                </option>
+
+                            </select>
 
                         </div>
 
 
                     </div>
 
-                </section>
 
+                    <div className="manage-product-actions">
+
+                        <button
+                            type="button"
+                            className="manage-cancel-button"
+                            onClick={() =>
+                                navigate(
+                                    "/seller/products"
+                                )
+                            }
+                        >
+
+                            Cancel
+
+                        </button>
+
+
+                        <button
+                            type="submit"
+                            className="manage-save-button"
+                            disabled={
+                                saving
+                            }
+                        >
+
+                            {saving ? (
+
+                                <>
+
+                                    <RefreshCw
+                                        size={15}
+                                        className="manage-product-spin"
+                                    />
+
+                                    Saving...
+
+                                </>
+
+                            ) : (
+
+                                <>
+
+                                    <Save
+                                        size={15}
+                                    />
+
+                                    Save Changes
+
+                                </>
+
+                            )}
+
+                        </button>
+
+                    </div>
+
+
+                </form>
 
             </main>
 
         </div>
+
     );
+
 }
 
 

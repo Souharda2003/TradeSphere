@@ -27,177 +27,283 @@ function Cart() {
 
     const navigate =
         useNavigate();
-
-
     const [items, setItems] =
         useState([]);
-
-
-    const [totalAmount, setTotalAmount] =
-        useState(0);
-
-
     const [loading, setLoading] =
         useState(true);
-
-
     const [updatingId, setUpdatingId] =
         useState(null);
-
-
     const [error, setError] =
         useState("");
 
-
     useEffect(() => {
-
         loadCart();
-
     }, []);
 
+async function loadCart() {
 
-    /*
-    =========================================
-    LOAD CART
-    =========================================
-    */
+    try {
 
-    async function loadCart() {
+        setLoading(true);
 
-        try {
+        setError("");
 
-            setLoading(true);
-
-            setError("");
-
-
-            const response =
-                await api.get(
-                    "/cart"
-                );
-
-
-            setItems(
-                response.data.items || []
+        const response =
+            await api.get(
+                "/cart"
             );
 
+        console.log(
+            "CART RESPONSE:",
+            response.data
+        );
 
-            setTotalAmount(
-                Number(
-                    response.data.totalAmount ||
-                    0
-                )
-            );
+        setItems(
+            response.data.items || []
+        );
 
+    } catch (error) {
 
-        } catch (error) {
-
-            console.error(
-                "LOAD CART ERROR:",
-                error
-            );
-
-
-            if (
-                error.response?.status ===
-                401
-            ) {
-
-                navigate(
-                    "/login?redirect=/cart"
-                );
-
-                return;
-            }
-
-
-            setError(
-
-                error.response
-                    ?.data
-                    ?.message ||
-
-                "Unable to load cart."
-
-            );
-
-        } finally {
-
-            setLoading(false);
-        }
-    }
-
-
-    /*
-    =========================================
-    UPDATE QUANTITY
-    =========================================
-    */
-
-    async function updateQuantity(
-        item,
-        newQuantity
-    ) {
+        console.error(
+            "LOAD CART ERROR:",
+            error.response?.data || error
+        );
 
         if (
-            newQuantity <= 0
+            error.response?.status === 401
         ) {
 
-            removeItem(
-                item.id
+            navigate(
+                "/login?redirect=/cart"
             );
 
             return;
         }
 
-
-        setUpdatingId(
-            item.id
+        setError(
+            error.response
+                ?.data
+                ?.message ||
+            "Unable to load cart."
         );
 
+    } finally {
 
-        try {
+        setLoading(false);
 
-            await api.put(
+    }
 
-                `/cart/${item.id}`,
+}
+function formatQuantity(value) {
 
-                {
-                    quantity:
-                        newQuantity
-                }
+    const number =
+        Number(value);
 
+    if (
+        !Number.isFinite(number)
+    ) {
+        return "";
+    }
+
+    /*
+    Whole number হলে decimal দেখাবে না
+
+    20.000  -> 20
+    5500.000 -> 5500
+    */
+
+    if (
+        Number.isInteger(number)
+    ) {
+        return String(number);
+    }
+
+    /*
+    Decimal থাকলে meaningful decimal রাখবে
+
+    76.056 -> 76.056
+    */
+
+    return String(number);
+}
+const totalAmount =
+    items.reduce(
+        (total, item) => {
+
+            const quantity =
+                Number(item.quantity) || 0;
+
+            const unitPrice =
+                Number(item.unit_price) ||
+                Number(item.price) ||
+                0;
+
+            return (
+                total +
+                quantity * unitPrice
             );
 
+        },
+        0
+    );
+async function updateQuantity(
+    item,
+    newQuantity
+) {
 
-            await loadCart();
+    const minimum = 5;
+
+    const quantity =
+        Number(newQuantity);
 
 
-        } catch (error) {
+    /*
+    =========================================
+    INVALID NUMBER
+    =========================================
+    */
 
-            setError(
+    if (
+        !Number.isFinite(quantity) ||
+        quantity <= 0
+    ) {
 
-                error.response
-                    ?.data
-                    ?.message ||
+        setError(
+            `Please enter a valid quantity. Minimum is ${minimum} ${item.unit}.`
+        );
 
-                "Unable to update quantity."
+        await loadCart();
 
-            );
-
-        } finally {
-
-            setUpdatingId(null);
-        }
+        return;
     }
 
 
     /*
     =========================================
-    REMOVE
+    MINIMUM 5
     =========================================
     */
 
+    if (
+        quantity < minimum
+    ) {
+
+        setError(
+            `Minimum order quantity is ${minimum} ${item.unit}.`
+        );
+
+        await loadCart();
+
+        return;
+    }
+
+
+
+    const available =
+        Number(
+            item.available_quantity || 0
+        );
+
+
+    if (
+        quantity > available
+    ) {
+
+        setError(
+            `Requested quantity is greater than available stock.`
+        );
+
+        await loadCart();
+
+        return;
+    }
+
+
+    setError("");
+
+    setUpdatingId(
+        item.id
+    );
+
+
+    try {
+
+        await api.put(
+            `/cart/${item.id}`,
+            {
+                quantity: quantity
+            }
+        );
+
+
+        /*
+        =====================================
+        UPDATE UI IMMEDIATELY
+        =====================================
+        */
+
+        setItems(
+            previousItems =>
+                previousItems.map(
+                    currentItem => {
+
+                        if (
+                            currentItem.id ===
+                            item.id
+                        ) {
+
+                            return {
+                                ...currentItem,
+                                quantity:
+                                    quantity
+                            };
+
+                        }
+
+                        return currentItem;
+
+                    }
+                )
+        );
+
+
+        /*
+        =====================================
+        SYNC WITH DATABASE
+        =====================================
+        */
+
+        await loadCart();
+
+
+    } catch (error) {
+
+        console.error(
+            "UPDATE QUANTITY ERROR:",
+            error.response?.data ||
+            error
+        );
+
+
+        setError(
+            error.response
+                ?.data
+                ?.message ||
+            "Unable to update quantity."
+        );
+
+
+        await loadCart();
+
+
+    } finally {
+
+        setUpdatingId(
+            null
+        );
+
+    }
+}
     async function removeItem(
         itemId
     ) {
@@ -207,6 +313,8 @@ function Cart() {
             setUpdatingId(
                 itemId
             );
+
+            setError("");
 
 
             await api.delete(
@@ -219,6 +327,12 @@ function Cart() {
 
         } catch (error) {
 
+            console.error(
+                "REMOVE ITEM ERROR:",
+                error.response?.data || error
+            );
+
+
             setError(
 
                 error.response
@@ -229,19 +343,14 @@ function Cart() {
 
             );
 
+
         } finally {
 
             setUpdatingId(null);
+
         }
+
     }
-
-
-    /*
-    =========================================
-    EMPTY CART
-    =========================================
-    */
-
     if (loading) {
 
         return (
@@ -258,17 +367,20 @@ function Cart() {
             </div>
 
         );
-    }
 
+    }
 
     return (
 
         <div className="cart-page">
 
 
-            {/* HEADER */}
+            {/* =================================
+                HEADER
+            ================================= */}
 
             <header className="cart-header">
+
 
                 <button
                     className="cart-back-button"
@@ -319,10 +431,27 @@ function Cart() {
             <main className="cart-main">
 
 
+                {/* ERROR */}
+
                 {error && (
 
                     <div className="cart-error">
+
                         {error}
+
+                        <button
+                            type="button"
+                            onClick={() => {
+
+                                setError("");
+
+                                loadCart();
+
+                            }}
+                        >
+                            ×
+                        </button>
+
                     </div>
 
                 )}
@@ -400,10 +529,16 @@ function Cart() {
 
 
                                 <span>
-                                    {items.length} product
+
+                                    {items.length}
+
+                                    {" "}
+
+                                    product
                                     {items.length !== 1
                                         ? "s"
                                         : ""}
+
                                 </span>
 
                             </div>
@@ -415,6 +550,7 @@ function Cart() {
                                 {items.map(
                                     item => {
 
+
                                         const image =
                                             item.primary_image
                                                 ?.startsWith(
@@ -424,31 +560,36 @@ function Cart() {
                                                 ? item.primary_image
 
                                                 : item.primary_image
+
                                                     ? `http://localhost:5000${item.primary_image}`
 
                                                     : null;
 
 
-                                        const subtotal =
+                                        const quantity =
                                             Number(
-                                                item.quantity
-                                            ) *
-                                            Number(
-                                                item.unit_price
+                                                item.quantity || 0
                                             );
+
+
+                                        const unitPrice =
+                                            Number(
+                                                item.unit_price || 0
+                                            );
+
+
+                                        const subtotal =
+                                            quantity *
+                                            unitPrice;
 
 
                                         const minimum =
-                                            Number(
-                                                item.minimum_order_quantity ||
-                                                1
-                                            );
+                                            5;
 
 
                                         const available =
                                             Number(
-                                                item.available_quantity ||
-                                                0
+                                                item.available_quantity || 0
                                             );
 
 
@@ -512,27 +653,36 @@ function Cart() {
 
 
                                                     <small>
+
                                                         SKU:{" "}
+
                                                         {
                                                             item.sku
                                                         }
+
                                                     </small>
 
 
                                                     <div className="cart-item-price">
 
                                                         ₹
-                                                        {Number(
-                                                            item.unit_price
-                                                        ).toLocaleString(
-                                                            "en-IN"
+
+                                                        {unitPrice.toLocaleString(
+                                                            "en-IN",
+                                                            {
+                                                                minimumFractionDigits: 2,
+                                                                maximumFractionDigits: 2
+                                                            }
                                                         )}
 
                                                         <small>
+
                                                             /
+
                                                             {
                                                                 item.unit
                                                             }
+
                                                         </small>
 
                                                     </div>
@@ -545,37 +695,42 @@ function Cart() {
                                                         {" "}
 
                                                         <strong>
+
                                                             {
                                                                 available
                                                             }{" "}
+
                                                             {
                                                                 item.unit
                                                             }
+
                                                         </strong>
 
                                                     </div>
 
                                                 </div>
 
-
-                                                {/* QUANTITY */}
-
                                                 <div className="cart-item-actions">
 
 
                                                     <div className="cart-quantity">
 
+
+                                                        {/* MINUS */}
+
                                                         <button
+                                                            type="button"
                                                             disabled={
-                                                                updating
+                                                                updating ||
+                                                                quantity <= 5
                                                             }
                                                             onClick={() =>
                                                                 updateQuantity(
                                                                     item,
-
-                                                                    Number(
-                                                                        item.quantity
-                                                                    ) - 1
+                                                                    Math.max(
+                                                                        5,
+                                                                        quantity - 1
+                                                                    )
                                                                 )
                                                             }
                                                         >
@@ -587,24 +742,97 @@ function Cart() {
                                                         </button>
 
 
-                                                        <strong>
-                                                            {
-                                                                item.quantity
+                                                        {/* USER INPUT */}
+
+                                                        <input
+                                                            type="number"
+                                                            className="cart-quantity-input"
+                                                            min="5"
+                                                            max={
+                                                                available
                                                             }
-                                                        </strong>
-
-
-                                                        <button
+                                                            step="0.001"
+                                                            value={
+                                                                formatQuantity(item.quantity)
+                                                            }
                                                             disabled={
                                                                 updating
+                                                            }
+                                                            onChange={(e) => {
+
+                                                                const value =
+                                                                    e.target.value;
+
+
+                                                                setItems(
+                                                                    previousItems =>
+
+                                                                        previousItems.map(
+                                                                            currentItem =>
+
+                                                                                currentItem.id ===
+                                                                                item.id
+
+                                                                                    ? {
+                                                                                        ...currentItem,
+                                                                                        quantity:
+                                                                                            value
+                                                                                    }
+
+                                                                                    : currentItem
+                                                                        )
+                                                                );
+
+                                                            }}
+                                                            onBlur={(e) => {
+
+    const value =
+        e.target.value;
+
+    updateQuantity(
+        item,
+        value
+    );
+
+}}
+                                                            onKeyDown={(e) => {
+
+                                                                if (
+                                                                    e.key ===
+                                                                    "Enter"
+                                                                ) {
+
+                                                                     e.preventDefault();
+
+            e.currentTarget.blur();
+
+                                                                }
+
+                                                            }}
+                                                               onWheel={(e) => {
+
+        e.currentTarget.blur();
+
+    }}
+                                                        />
+
+
+                                                        {/* PLUS */}
+
+                                                        <button
+                                                            type="button"
+                                                            disabled={
+                                                                updating ||
+                                                                quantity >=
+                                                                available
                                                             }
                                                             onClick={() =>
                                                                 updateQuantity(
                                                                     item,
-
-                                                                    Number(
-                                                                        item.quantity
-                                                                    ) + 1
+                                                                    Math.min(
+                                                                        available,
+                                                                        quantity + 1
+                                                                    )
                                                                 )
                                                             }
                                                         >
@@ -619,26 +847,38 @@ function Cart() {
 
 
                                                     <small>
+
                                                         Min:{" "}
+
                                                         {minimum}{" "}
+
                                                         {
                                                             item.unit
                                                         }
+
                                                     </small>
 
 
                                                     <strong className="cart-item-subtotal">
 
                                                         ₹
+
                                                         {subtotal.toLocaleString(
-                                                            "en-IN"
+                                                            "en-IN",
+                                                            {
+                                                                minimumFractionDigits: 2,
+                                                                maximumFractionDigits: 2
+                                                            }
                                                         )}
 
                                                     </strong>
 
 
+                                                    {/* REMOVE */}
+
                                                     <button
                                                         className="remove-cart-item"
+                                                        type="button"
                                                         disabled={
                                                             updating
                                                         }
@@ -710,8 +950,13 @@ function Cart() {
                                 <strong>
 
                                     ₹
+
                                     {totalAmount.toLocaleString(
-                                        "en-IN"
+                                        "en-IN",
+                                        {
+                                            minimumFractionDigits: 2,
+                                            maximumFractionDigits: 2
+                                        }
                                     )}
 
                                 </strong>
@@ -744,8 +989,13 @@ function Cart() {
                                 <strong>
 
                                     ₹
+
                                     {totalAmount.toLocaleString(
-                                        "en-IN"
+                                        "en-IN",
+                                        {
+                                            minimumFractionDigits: 2,
+                                            maximumFractionDigits: 2
+                                        }
                                     )}
 
                                 </strong>
@@ -755,6 +1005,7 @@ function Cart() {
 
                             <button
                                 className="checkout-button"
+                                type="button"
                                 onClick={() =>
                                     navigate(
                                         "/checkout"
@@ -769,6 +1020,7 @@ function Cart() {
 
                             <button
                                 className="continue-button"
+                                type="button"
                                 onClick={() =>
                                     navigate(
                                         "/products"
@@ -790,7 +1042,9 @@ function Cart() {
             </main>
 
         </div>
+
     );
+
 }
 
 
