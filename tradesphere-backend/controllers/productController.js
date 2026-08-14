@@ -505,9 +505,9 @@ async function getSellerProducts(
 
 
 /*
-=========================================
-GET SINGLE SELLER PRODUCT
-=========================================
+==================================================
+SELLER - GET OWN PRODUCT
+==================================================
 */
 
 async function getSellerProduct(
@@ -534,30 +534,46 @@ async function getSellerProduct(
             `
             SELECT
 
-                p.*,
+                p.id,
 
-                i.quantity,
+                p.product_name,
 
-                i.reserved_quantity,
+                p.sku,
 
-                i.available_quantity
+                p.unit,
+
+                p.price,
+
+                p.minimum_order_quantity,
+
+                p.status,
+
+                p.seller_id,
+
+                i.available_quantity,
+
+                i.reserved_quantity
 
             FROM products p
 
-            INNER JOIN inventory i
-                ON i.product_id = p.id
+            LEFT JOIN inventory i
+
+                ON i.product_id =
+                    p.id
 
             WHERE p.id = ?
 
             AND p.seller_id = ?
 
             LIMIT 1
+
             `,
 
             [
                 productId,
                 sellerId
             ]
+
         );
 
 
@@ -570,32 +586,11 @@ async function getSellerProduct(
                 success: false,
 
                 message:
-                    "Product not found"
+                    "Product not found."
 
             });
+
         }
-
-
-        const [
-            images
-        ] = await pool.execute(
-
-            `
-            SELECT
-                id,
-                image_url,
-                is_primary,
-                display_order
-
-            FROM product_images
-
-            WHERE product_id = ?
-
-            ORDER BY display_order ASC
-            `,
-
-            [productId]
-        );
 
 
         return res.json({
@@ -603,9 +598,7 @@ async function getSellerProduct(
             success: true,
 
             product:
-                products[0],
-
-            images
+                products[0]
 
         });
 
@@ -613,7 +606,7 @@ async function getSellerProduct(
     } catch (error) {
 
         console.error(
-            "GET PRODUCT ERROR:",
+            "GET SELLER PRODUCT ERROR:",
             error
         );
 
@@ -623,19 +616,255 @@ async function getSellerProduct(
             success: false,
 
             message:
-                "Unable to fetch product"
+                "Unable to load product."
 
         });
+
     }
+
 }
 
 
 /*
-=========================================
-UPDATE STOCK
-=========================================
+==================================================
+SELLER - UPDATE PRODUCT
+==================================================
 */
 
+async function updateSellerProduct(
+    req,
+    res
+) {
+
+    const connection =
+        await pool.getConnection();
+
+
+    try {
+
+        const sellerId =
+            req.user.userId;
+
+
+        const productId =
+            Number(
+                req.params.id
+            );
+
+
+        const {
+
+            product_name,
+
+            sku,
+
+            unit,
+
+            price,
+
+            minimum_order_quantity,
+
+            status,
+
+            available_quantity
+
+        } = req.body;
+
+
+        if (
+            !product_name ||
+            !sku ||
+            !unit
+        ) {
+
+            return res.status(400).json({
+
+                success: false,
+
+                message:
+                    "Product name, SKU and unit are required."
+
+            });
+
+        }
+
+
+        await connection.beginTransaction();
+
+
+        /*
+        ==========================================
+        VERIFY OWNERSHIP
+        ==========================================
+        */
+
+        const [
+            products
+        ] = await connection.execute(
+
+            `
+            SELECT id
+
+            FROM products
+
+            WHERE id = ?
+
+            AND seller_id = ?
+
+            LIMIT 1
+
+            `,
+
+            [
+                productId,
+                sellerId
+            ]
+
+        );
+
+
+        if (
+            products.length === 0
+        ) {
+
+            throw new Error(
+                "Product not found or access denied."
+            );
+
+        }
+
+
+        /*
+        ==========================================
+        UPDATE PRODUCT
+        ==========================================
+        */
+
+        await connection.execute(
+
+            `
+            UPDATE products
+
+            SET
+
+                product_name = ?,
+
+                sku = ?,
+
+                unit = ?,
+
+                price = ?,
+
+                minimum_order_quantity = ?,
+
+                status = ?
+
+            WHERE id = ?
+
+            AND seller_id = ?
+
+            `,
+
+            [
+
+                product_name,
+
+                sku,
+
+                unit,
+
+                Number(price),
+
+                Number(
+                    minimum_order_quantity
+                ),
+
+                status,
+
+                productId,
+
+                sellerId
+
+            ]
+
+        );
+
+
+        /*
+        ==========================================
+        UPDATE INVENTORY
+        ==========================================
+        */
+
+        await connection.execute(
+
+            `
+            UPDATE inventory
+
+            SET
+
+                available_quantity = ?
+
+            WHERE product_id = ?
+
+            `,
+
+            [
+
+                Number(
+                    available_quantity
+                ),
+
+                productId
+
+            ]
+
+        );
+
+
+        await connection.commit();
+
+
+        return res.json({
+
+            success: true,
+
+            message:
+                "Product updated successfully."
+
+        });
+
+
+    } catch (error) {
+
+        await connection.rollback();
+
+
+        console.error(
+            "UPDATE SELLER PRODUCT ERROR:",
+            error
+        );
+
+
+        return res.status(400).json({
+
+            success: false,
+
+            message:
+                error.message ||
+
+                "Unable to update product."
+
+        });
+
+
+    } finally {
+
+        connection.release();
+
+    }
+
+}
 async function updateStock(
     req,
     res
@@ -851,13 +1080,6 @@ async function updateStock(
                 sellerId
             ]
         );
-
-
-        /*
-        =================================
-        PRODUCT STATUS
-        =================================
-        */
 
         const available =
             newQuantity -
@@ -1157,13 +1379,6 @@ async function getPublicProduct(
             });
         }
 
-
-        /*
-        =================================
-        PRODUCT
-        =================================
-        */
-
         const [
             products
         ] = await pool.execute(
@@ -1306,6 +1521,7 @@ async function getPublicProduct(
     getSellerProducts,
 
     getSellerProduct,
+    updateSellerProduct,
 
     updateStock,
 

@@ -37,13 +37,6 @@ function authenticateToken(
 
         const decoded =
             verifyToken(token);
-
-
-        /*
-         * Save authenticated user
-         * information inside request.
-         */
-
         req.user = decoded;
 
 

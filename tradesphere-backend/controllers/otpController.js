@@ -1,6 +1,6 @@
 const crypto = require("crypto");
 
-const pool =
+const {pool} =
     require("../config/db");
 
 const {
@@ -44,12 +44,6 @@ function hashOTP(
 }
 
 
-/*
-=========================================
-SEND ORDER OTP
-=========================================
-*/
-
 async function sendOrderOTPCode(
     req,
     res
@@ -57,15 +51,31 @@ async function sendOrderOTPCode(
 
     try {
 
+        /* =================================
+           AUTHENTICATED USER
+        ================================= */
+
         const userId =
-            req.user.userId;
+            req.user?.userId;
 
 
-        /*
-        =================================
-        GET CUSTOMER
-        =================================
-        */
+        if (!userId) {
+
+            return res.status(401).json({
+
+                success: false,
+
+                message:
+                    "Authentication required."
+
+            });
+
+        }
+
+
+        /* =================================
+           GET CUSTOMER
+        ================================= */
 
         const [
             users
@@ -76,7 +86,7 @@ async function sendOrderOTPCode(
 
                 id,
 
-                name,
+                full_name AS name,
 
                 email,
 
@@ -87,7 +97,6 @@ async function sendOrderOTPCode(
             WHERE id = ?
 
             LIMIT 1
-
             `,
 
             [
@@ -96,6 +105,10 @@ async function sendOrderOTPCode(
 
         );
 
+
+        /* =================================
+           USER NOT FOUND
+        ================================= */
 
         if (
             users.length === 0
@@ -109,12 +122,17 @@ async function sendOrderOTPCode(
                     "User not found."
 
             });
+
         }
 
 
         const user =
             users[0];
 
+
+        /* =================================
+           CUSTOMER CHECK
+        ================================= */
 
         if (
             user.role !==
@@ -129,11 +147,19 @@ async function sendOrderOTPCode(
                     "Only customers can place orders."
 
             });
+
         }
 
 
+        /* =================================
+           EMAIL CHECK
+        ================================= */
+
         if (
-            !user.email
+            !user.email ||
+            !String(
+                user.email
+            ).trim()
         ) {
 
             return res.status(400).json({
@@ -144,14 +170,24 @@ async function sendOrderOTPCode(
                     "Please add an email address to your profile."
 
             });
+
         }
 
 
-        /*
-        =================================
-        DELETE OLD OTP
-        =================================
-        */
+        const customerEmail =
+            String(
+                user.email
+            ).trim();
+
+
+        const customerName =
+            user.full_name ||
+            "Customer";
+
+
+        /* =================================
+           DELETE OLD OTP
+        ================================= */
 
         await pool.execute(
 
@@ -160,8 +196,8 @@ async function sendOrderOTPCode(
 
             WHERE user_id = ?
 
-            AND purpose = 'ORDER_VERIFICATION'
-
+            AND purpose =
+                'ORDER_VERIFICATION'
             `,
 
             [
@@ -171,11 +207,9 @@ async function sendOrderOTPCode(
         );
 
 
-        /*
-        =================================
-        GENERATE OTP
-        =================================
-        */
+        /* =================================
+           GENERATE OTP
+        ================================= */
 
         const otp =
             generateOTP();
@@ -194,11 +228,9 @@ async function sendOrderOTPCode(
             );
 
 
-        /*
-        =================================
-        SAVE OTP
-        =================================
-        */
+        /* =================================
+           SAVE OTP
+        ================================= */
 
         await pool.execute(
 
@@ -213,7 +245,11 @@ async function sendOrderOTPCode(
 
                 purpose,
 
-                expires_at
+                expires_at,
+
+                verified,
+
+                attempts
             )
 
             VALUES
@@ -222,15 +258,16 @@ async function sendOrderOTPCode(
                 ?,
                 ?,
                 'ORDER_VERIFICATION',
-                ?
+                ?,
+                FALSE,
+                0
             )
-
             `,
 
             [
                 userId,
 
-                user.email,
+                customerEmail,
 
                 otpHash,
 
@@ -240,18 +277,26 @@ async function sendOrderOTPCode(
         );
 
 
+        /* =================================
+           SEND EMAIL
+        ================================= */
+
         await sendOrderOTP({
 
-    email:
-        user.email,
+            email:
+                customerEmail,
 
-    customerName:
-        user.name,
+            customerName:
+                customerName,
 
-    otp
+            otp
 
-});
+        });
 
+
+        /* =================================
+           SUCCESS
+        ================================= */
 
         return res.json({
 
@@ -262,7 +307,7 @@ async function sendOrderOTPCode(
 
             email:
                 maskEmail(
-                    user.email
+                    customerEmail
                 )
 
         });
@@ -271,8 +316,25 @@ async function sendOrderOTPCode(
     } catch (error) {
 
         console.error(
-            "SEND ORDER OTP ERROR:",
-            error
+            "================================="
+        );
+
+        console.error(
+            "SEND ORDER OTP ERROR"
+        );
+
+        console.error(
+            "MESSAGE:",
+            error.message
+        );
+
+        console.error(
+            "STACK:",
+            error.stack
+        );
+
+        console.error(
+            "================================="
         );
 
 
@@ -281,20 +343,14 @@ async function sendOrderOTPCode(
             success: false,
 
             message:
+                error.message ||
                 "Unable to send OTP."
 
         });
 
     }
+
 }
-
-
-/*
-=========================================
-MASK EMAIL
-=========================================
-*/
-
 function maskEmail(
     email
 ) {
@@ -329,12 +385,6 @@ function maskEmail(
 }
 
 
-/*
-=========================================
-VERIFY ORDER OTP
-=========================================
-*/
-
 async function verifyOrderOTP(
     req,
     res
@@ -342,9 +392,31 @@ async function verifyOrderOTP(
 
     try {
 
-        const userId =
-            req.user.userId;
+        /* =================================
+           AUTHENTICATED USER
+        ================================= */
 
+        const userId =
+            req.user?.userId;
+
+
+        if (!userId) {
+
+            return res.status(401).json({
+
+                success: false,
+
+                message:
+                    "Authentication required."
+
+            });
+
+        }
+
+
+        /* =================================
+           OTP
+        ================================= */
 
         const {
             otp
@@ -366,8 +438,13 @@ async function verifyOrderOTP(
                     "Enter a valid 6-digit OTP."
 
             });
+
         }
 
+
+        /* =================================
+           GET LATEST OTP
+        ================================= */
 
         const [
             records
@@ -388,7 +465,6 @@ async function verifyOrderOTP(
             ORDER BY created_at DESC
 
             LIMIT 1
-
             `,
 
             [
@@ -397,6 +473,10 @@ async function verifyOrderOTP(
 
         );
 
+
+        /* =================================
+           OTP NOT FOUND
+        ================================= */
 
         if (
             records.length === 0
@@ -410,6 +490,7 @@ async function verifyOrderOTP(
                     "OTP not found. Please request a new OTP."
 
             });
+
         }
 
 
@@ -417,11 +498,9 @@ async function verifyOrderOTP(
             records[0];
 
 
-        /*
-        =================================
-        EXPIRY
-        =================================
-        */
+        /* =================================
+           EXPIRY
+        ================================= */
 
         if (
             new Date(
@@ -437,17 +516,22 @@ async function verifyOrderOTP(
                     "OTP expired. Please request a new OTP."
 
             });
+
         }
 
 
-        /*
-        =================================
-        ATTEMPT LIMIT
-        =================================
-        */
+        /* =================================
+           ATTEMPT LIMIT
+        ================================= */
+
+        const attempts =
+            Number(
+                record.attempts || 0
+            );
+
 
         if (
-            record.attempts >= 5
+            attempts >= 5
         ) {
 
             return res.status(429).json({
@@ -458,8 +542,13 @@ async function verifyOrderOTP(
                     "Too many incorrect attempts. Please request a new OTP."
 
             });
+
         }
 
+
+        /* =================================
+           HASH INPUT
+        ================================= */
 
         const inputHash =
             hashOTP(
@@ -467,11 +556,9 @@ async function verifyOrderOTP(
             );
 
 
-        /*
-        =================================
-        WRONG OTP
-        =================================
-        */
+        /* =================================
+           WRONG OTP
+        ================================= */
 
         if (
             inputHash !==
@@ -487,7 +574,6 @@ async function verifyOrderOTP(
                     attempts + 1
 
                 WHERE id = ?
-
                 `,
 
                 [
@@ -505,14 +591,13 @@ async function verifyOrderOTP(
                     "Incorrect OTP."
 
             });
+
         }
 
 
-        /*
-        =================================
-        VERIFIED
-        =================================
-        */
+        /* =================================
+           VERIFIED
+        ================================= */
 
         await pool.execute(
 
@@ -522,7 +607,6 @@ async function verifyOrderOTP(
             SET verified = TRUE
 
             WHERE id = ?
-
             `,
 
             [
@@ -545,8 +629,25 @@ async function verifyOrderOTP(
     } catch (error) {
 
         console.error(
-            "VERIFY ORDER OTP ERROR:",
-            error
+            "================================="
+        );
+
+        console.error(
+            "VERIFY ORDER OTP ERROR"
+        );
+
+        console.error(
+            "MESSAGE:",
+            error.message
+        );
+
+        console.error(
+            "STACK:",
+            error.stack
+        );
+
+        console.error(
+            "================================="
         );
 
 
@@ -555,13 +656,14 @@ async function verifyOrderOTP(
             success: false,
 
             message:
+                error.message ||
                 "Unable to verify OTP."
 
         });
 
     }
-}
 
+}
 
 module.exports = {
 

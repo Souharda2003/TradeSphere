@@ -1,6 +1,7 @@
+require("dotenv").config();
+
 const express = require("express");
 const cors = require("cors");
-const dotenv = require("dotenv");
 
 const {
     testDatabase
@@ -22,24 +23,27 @@ const sellerRoutes =
 const productRoutes =
     require("./routes/productRoutes");
 
-    const path =
+const path =
     require("path");
-    const cartRoutes =
+
+const cartRoutes =
     require("./routes/cartRoutes");
-    const otpRoutes =
+const otpRoutes =
     require("./routes/otpRoutes");
-    const orderRoutes =
+    
+const orderRoutes =
     require("./routes/orderRoutes");
-dotenv.config();
-
-
+const notificationRoutes =
+        require("./routes/notificationRoutes");
 const app =
     express();
 
 
-/* =====================================
-   CORS
-===================================== */
+/*
+=========================================
+CORS
+=========================================
+*/
 
 app.use(
     cors({
@@ -47,15 +51,18 @@ app.use(
         origin:
             "http://localhost:5173",
 
-        credentials: true
+        credentials:
+            true
 
     })
 );
 
 
-/* =====================================
-   BODY PARSER
-===================================== */
+/*
+=========================================
+BODY PARSER
+=========================================
+*/
 
 app.use(
     express.json({
@@ -71,9 +78,28 @@ app.use(
 );
 
 
-/* =====================================
-   HEALTH
-===================================== */
+/*
+=========================================
+STATIC UPLOADS
+=========================================
+*/
+
+app.use(
+    "/uploads",
+    express.static(
+        path.join(
+            __dirname,
+            "uploads"
+        )
+    )
+);
+
+
+/*
+=========================================
+HEALTH CHECK
+=========================================
+*/
 
 app.get(
     "/api/health",
@@ -82,7 +108,8 @@ app.get(
 
         res.json({
 
-            success: true,
+            success:
+                true,
 
             message:
                 "TradeSphere Node.js Backend is running"
@@ -93,9 +120,11 @@ app.get(
 );
 
 
-/* =====================================
-   AUTH
-===================================== */
+/*
+=========================================
+AUTH
+=========================================
+*/
 
 app.use(
     "/api/auth",
@@ -103,9 +132,11 @@ app.use(
 );
 
 
-/* =====================================
-   USER
-===================================== */
+/*
+=========================================
+USER
+=========================================
+*/
 
 app.use(
     "/api/user",
@@ -113,9 +144,11 @@ app.use(
 );
 
 
-/* =====================================
-   CUSTOMER
-===================================== */
+/*
+=========================================
+CUSTOMER
+=========================================
+*/
 
 app.use(
     "/api/customer",
@@ -123,28 +156,36 @@ app.use(
 );
 
 
-/* =====================================
-   SELLER
-===================================== */
+/*
+=========================================
+SELLER
+=========================================
+*/
 
 app.use(
     "/api/seller",
     sellerRoutes
 );
 
+
+/*
+=========================================
+PRODUCTS
+=========================================
+*/
+
 app.use(
     "/api/products",
     productRoutes
 );
-app.use(
-    "/uploads",
-    express.static(
-        path.join(
-            __dirname,
-            "uploads"
-        )
-    )
-);
+
+
+/*
+=========================================
+CART
+=========================================
+*/
+
 app.use(
     "/api/cart",
     cartRoutes
@@ -154,42 +195,83 @@ app.use(
     otpRoutes
 );
 
+
+/*
+=========================================
+ORDERS
+=========================================
+*/
+
 app.use(
     "/api/orders",
     orderRoutes
 );
+app.use(
+    "/api/notifications",
+    notificationRoutes
+);
 
-    
-/* =====================================
-   404
-===================================== */
+
+/*
+=========================================
+404 HANDLER
+=========================================
+*/
 
 app.use(
     (req, res) => {
 
+        console.log(
+            "404 API:",
+            req.method,
+            req.originalUrl
+        );
+
+
         res.status(404).json({
 
-            success: false,
+            success:
+                false,
 
             message:
-                "API endpoint not found"
+                "API endpoint not found",
+
+            path:
+                req.originalUrl
 
         });
 
     }
 );
 
-app.use(
-    (error, req, res, next) => {
 
-        console.error(error);
+/*
+=========================================
+GLOBAL ERROR HANDLER
+=========================================
+*/
+
+app.use(
+    (
+        error,
+        req,
+        res,
+        next
+    ) => {
+
+        console.error(
+            "GLOBAL SERVER ERROR:",
+            error
+        );
 
 
         res.status(500).json({
 
-            success: false,
+            success:
+                false,
 
             message:
+                error.message ||
                 "Internal server error"
 
         });
@@ -197,9 +279,23 @@ app.use(
     }
 );
 
-const PORT =
-    process.env.PORT || 5000;
 
+/*
+=========================================
+PORT
+=========================================
+*/
+
+const PORT =
+    process.env.PORT ||
+    5000;
+
+
+/*
+=========================================
+START SERVER
+=========================================
+*/
 
 async function startServer() {
 
@@ -209,13 +305,11 @@ async function startServer() {
 
 
         app.listen(
+
             PORT,
 
             () => {
 
-                console.log(
-                    "================================="
-                );
 
                 console.log(
                     "TradeSphere Backend"
@@ -230,12 +324,13 @@ async function startServer() {
                 );
 
                 console.log(
-                    "================================="
+                    `Cart: http://localhost:${PORT}/api/cart`
                 );
 
-            }
-        );
 
+            }
+
+        );
 
     } catch (error) {
 
@@ -245,7 +340,9 @@ async function startServer() {
         );
 
         process.exit(1);
+
     }
+
 }
 
 

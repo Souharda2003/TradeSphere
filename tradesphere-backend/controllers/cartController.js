@@ -1,86 +1,85 @@
-const pool = require("../config/db");
+const {
+    pool
+} = require("../config/db");
 
 
-/*
-==================================================
-GET OR CREATE CART
-==================================================
-*/
+function getUserId(req) {
 
-async function getOrCreateCart(
-    userId
-) {
-
-    const [
-        existingCart
-    ] = await pool.execute(
-
-        `
-        SELECT id
-        FROM cart
-        WHERE user_id = ?
-        LIMIT 1
-        `,
-
-        [
-            userId
-        ]
-
+    return (
+        req.user?.userId ||
+        req.user?.id ||
+        null
     );
 
-
-    if (
-        existingCart.length > 0
-    ) {
-
-        return existingCart[0].id;
-    }
-
-
-    const [
-        result
-    ] = await pool.execute(
-
-        `
-        INSERT INTO cart
-        (
-            user_id
-        )
-        VALUES (?)
-        `,
-
-        [
-            userId
-        ]
-
-    );
-
-
-    return result.insertId;
 }
 
 
-/*
-==================================================
-GET CUSTOMER CART
-==================================================
-*/
-
-async function getCart(
-    req,
-    res
-) {
+async function getCart(req, res) {
 
     try {
 
         const userId =
-            req.user.userId;
+            getUserId(req);
+
+
+        if (!userId) {
+
+            return res.status(401).json({
+
+                success: false,
+
+                message:
+                    "Authentication required."
+
+            });
+
+        }
+
+
+        const [
+            carts
+        ] = await pool.execute(
+
+            `
+                SELECT id
+
+                FROM cart
+
+                WHERE user_id = ?
+
+                LIMIT 1
+            `,
+
+            [
+                userId
+            ]
+
+        );
+
+
+        if (
+            carts.length === 0
+        ) {
+
+            return res.json({
+
+                success: true,
+
+                items: [],
+
+                cartCount: 0,
+
+                totalAmount: 0,
+
+                cartTotal: 0
+
+            });
+
+        }
 
 
         const cartId =
-            await getOrCreateCart(
-                userId
-            );
+            carts[0].id;
 
 
         const [
@@ -88,61 +87,68 @@ async function getCart(
         ] = await pool.execute(
 
             `
-            SELECT
+                SELECT
 
-                ci.id,
+                    ci.id AS id,
 
-                ci.product_id,
+                    ci.product_id,
 
-                ci.quantity,
+                    ci.quantity,
 
-                ci.unit_price,
+                    ci.unit_price,
 
-                (
-                    ci.quantity *
-                    ci.unit_price
-                ) AS subtotal,
+                    ci.unit_price AS price,
 
-                p.product_name,
+                    p.product_name,
 
-                p.category,
+                    p.sku,
 
-                p.sku,
+                    p.unit,
 
-                p.unit,
+                    p.description,
 
-                p.status,
+                    p.category,
 
-                p.minimum_order_quantity,
+                    p.seller_id,
 
-                i.available_quantity,
+                    p.minimum_order_quantity,
 
-                (
-                    SELECT pi.image_url
+                    p.status,
 
-                    FROM product_images pi
+                    COALESCE(
+                        i.available_quantity,
+                        0
+                    ) AS available_quantity,
 
-                    WHERE pi.product_id =
-                        p.id
+                    (
+                        SELECT
+                            pi.image_url
 
-                    AND pi.is_primary = 1
+                        FROM product_images pi
 
-                    LIMIT 1
+                        WHERE
+                            pi.product_id = p.id
 
-                ) AS primary_image
+                            AND pi.is_primary = 1
 
-            FROM cart_items ci
+                        ORDER BY
+                            pi.display_order ASC
 
-            INNER JOIN products p
-                ON p.id = ci.product_id
+                        LIMIT 1
 
-            INNER JOIN inventory i
-                ON i.product_id = p.id
+                    ) AS primary_image
 
-            WHERE ci.cart_id = ?
+                FROM cart_items ci
 
-            ORDER BY ci.created_at DESC
+                INNER JOIN products p
+                    ON p.id = ci.product_id
 
+                LEFT JOIN inventory i
+                    ON i.product_id = p.id
+
+                WHERE ci.cart_id = ?
+
+                ORDER BY ci.id DESC
             `,
 
             [
@@ -151,29 +157,40 @@ async function getCart(
 
         );
 
-
-        let totalAmount = 0;
-
-        let totalItems = 0;
+const cartCount =
+    items.length;
 
 
-        items.forEach(
-            item => {
+const totalAmount =
+    items.reduce(
 
-                totalAmount +=
-                    Number(
-                        item.subtotal
-                    );
+        (
+            total,
+            item
+        ) => {
 
-                totalItems +=
-                    Number(
-                        item.quantity
-                    );
+            const quantity =
+                Number(
+                    item.quantity || 0
+                );
 
-            }
-        );
+            const unitPrice =
+                Number(
+                    item.unit_price || 0
+                );
 
+            return (
+                total +
+                (
+                    quantity *
+                    unitPrice
+                )
+            );
 
+        },
+
+        0
+    );
         return res.json({
 
             success: true,
@@ -182,9 +199,12 @@ async function getCart(
 
             items,
 
+            cartCount,
+
             totalAmount,
 
-            totalItems
+            cartTotal:
+                totalAmount
 
         });
 
@@ -202,17 +222,76 @@ async function getCart(
             success: false,
 
             message:
+                error.message ||
                 "Unable to load cart."
 
         });
 
     }
+
+}
+async function getOrCreateCart(
+    userId
+) {
+
+    const [
+        existingCart
+    ] = await pool.execute(
+
+        `
+        SELECT id
+
+        FROM cart
+
+        WHERE user_id = ?
+
+        LIMIT 1
+        `,
+
+        [
+            userId
+        ]
+
+    );
+
+
+    if (
+        existingCart.length > 0
+    ) {
+
+        return existingCart[0].id;
+
+    }
+
+
+    const [
+        result
+    ] = await pool.execute(
+
+        `
+        INSERT INTO cart
+        (
+            user_id
+        )
+
+        VALUES (?)
+        `,
+
+        [
+            userId
+        ]
+
+    );
+
+
+    return result.insertId;
+
 }
 
 
 /*
 ==================================================
-ADD PRODUCT TO CART
+ADD TO CART
 ==================================================
 */
 
@@ -224,7 +303,21 @@ async function addToCart(
     try {
 
         const userId =
-            req.user.userId;
+            getUserId(req);
+
+
+        if (!userId) {
+
+            return res.status(401).json({
+
+                success: false,
+
+                message:
+                    "Authentication required."
+
+            });
+
+        }
 
 
         const {
@@ -262,6 +355,7 @@ async function addToCart(
                     "Invalid product."
 
             });
+
         }
 
 
@@ -278,6 +372,7 @@ async function addToCart(
                     "Invalid quantity."
 
             });
+
         }
 
 
@@ -306,17 +401,19 @@ async function addToCart(
 
                 p.minimum_order_quantity,
 
-                i.available_quantity
+                COALESCE(
+                    i.available_quantity,
+                    0
+                ) AS available_quantity
 
             FROM products p
 
-            INNER JOIN inventory i
+            LEFT JOIN inventory i
                 ON i.product_id = p.id
 
             WHERE p.id = ?
 
             LIMIT 1
-
             `,
 
             [
@@ -338,6 +435,7 @@ async function addToCart(
                     "Product not found."
 
             });
+
         }
 
 
@@ -352,8 +450,8 @@ async function addToCart(
         */
 
         if (
-            product.status !==
-            "ACTIVE"
+            product.status &&
+            product.status !== "ACTIVE"
         ) {
 
             return res.status(400).json({
@@ -364,6 +462,7 @@ async function addToCart(
                     "This product is currently unavailable."
 
             });
+
         }
 
 
@@ -372,28 +471,24 @@ async function addToCart(
         MINIMUM ORDER
         ==========================================
         */
-
-        const minimumOrder =
-            Number(
-                product.minimum_order_quantity
-            );
+const minimumOrder = 5;
 
 
-        if (
-            quantityNumber <
-            minimumOrder
-        ) {
+if (
+    quantityNumber <
+    minimumOrder
+) {
 
-            return res.status(400).json({
+    return res.status(400).json({
 
-                success: false,
+        success: false,
 
-                message:
-                    `Minimum order is ${minimumOrder} ${product.unit}.`
+        message:
+            `Minimum order is ${minimumOrder} ${product.unit}.`
 
-            });
-        }
+    });
 
+}
 
         /*
         ==========================================
@@ -403,7 +498,7 @@ async function addToCart(
 
         const availableStock =
             Number(
-                product.available_quantity
+                product.available_quantity || 0
             );
 
 
@@ -420,12 +515,13 @@ async function addToCart(
                     `Only ${availableStock} ${product.unit} is available.`
 
             });
+
         }
 
 
         /*
         ==========================================
-        CART
+        GET / CREATE CART
         ==========================================
         */
 
@@ -459,7 +555,6 @@ async function addToCart(
             AND product_id = ?
 
             LIMIT 1
-
             `,
 
             [
@@ -470,14 +565,19 @@ async function addToCart(
         );
 
 
+        /*
+        ==========================================
+        UPDATE EXISTING ITEM
+        ==========================================
+        */
+
         if (
             existingItems.length > 0
         ) {
 
             const existingQuantity =
                 Number(
-                    existingItems[0]
-                        .quantity
+                    existingItems[0].quantity
                 );
 
 
@@ -485,12 +585,6 @@ async function addToCart(
                 existingQuantity +
                 quantityNumber;
 
-
-            /*
-            ==============================
-            STOCK CHECK
-            ==============================
-            */
 
             if (
                 finalQuantity >
@@ -505,14 +599,9 @@ async function addToCart(
                         `Only ${availableStock} ${product.unit} is available. You already have ${existingQuantity} in your cart.`
 
                 });
+
             }
 
-
-            /*
-            ==============================
-            UPDATE
-            ==============================
-            */
 
             await pool.execute(
 
@@ -526,7 +615,6 @@ async function addToCart(
                     unit_price = ?
 
                 WHERE id = ?
-
                 `,
 
                 [
@@ -545,9 +633,9 @@ async function addToCart(
 
 
             /*
-            ==============================
-            INSERT
-            ==============================
+            ==========================================
+            INSERT NEW ITEM
+            ==========================================
             */
 
             await pool.execute(
@@ -571,7 +659,6 @@ async function addToCart(
                     ?,
                     ?
                 )
-
                 `,
 
                 [
@@ -586,6 +673,7 @@ async function addToCart(
                 ]
 
             );
+
         }
 
 
@@ -612,11 +700,26 @@ async function addToCart(
             success: false,
 
             message:
-                "Unable to add product to cart."
+                error.message ||
+                "Unable to add product to cart.",
+
+            error: {
+
+                code:
+                    error.code,
+
+                errno:
+                    error.errno,
+
+                sqlMessage:
+                    error.sqlMessage
+
+            }
 
         });
 
     }
+
 }
 
 
@@ -634,7 +737,21 @@ async function updateCartItem(
     try {
 
         const userId =
-            req.user.userId;
+            getUserId(req);
+
+
+        if (!userId) {
+
+            return res.status(401).json({
+
+                success: false,
+
+                message:
+                    "Authentication required."
+
+            });
+
+        }
 
 
         const itemId =
@@ -662,6 +779,7 @@ async function updateCartItem(
                     "Invalid cart item."
 
             });
+
         }
 
 
@@ -678,6 +796,7 @@ async function updateCartItem(
                     "Quantity must be greater than zero."
 
             });
+
         }
 
 
@@ -706,7 +825,10 @@ async function updateCartItem(
 
                 p.status,
 
-                i.available_quantity
+                COALESCE(
+                    i.available_quantity,
+                    0
+                ) AS available_quantity
 
             FROM cart_items ci
 
@@ -716,7 +838,7 @@ async function updateCartItem(
             INNER JOIN products p
                 ON p.id = ci.product_id
 
-            INNER JOIN inventory i
+            LEFT JOIN inventory i
                 ON i.product_id = p.id
 
             WHERE ci.id = ?
@@ -724,7 +846,6 @@ async function updateCartItem(
             AND c.user_id = ?
 
             LIMIT 1
-
             `,
 
             [
@@ -747,6 +868,7 @@ async function updateCartItem(
                     "Cart item not found."
 
             });
+
         }
 
 
@@ -755,8 +877,8 @@ async function updateCartItem(
 
 
         if (
-            item.status !==
-            "ACTIVE"
+            item.status &&
+            item.status !== "ACTIVE"
         ) {
 
             return res.status(400).json({
@@ -767,33 +889,31 @@ async function updateCartItem(
                     "This product is no longer available."
 
             });
+
         }
 
 
-        const minimum =
-            Number(
-                item.minimum_order_quantity
-            );
+const minimum = 5;
 
 
-        if (
-            quantity < minimum
-        ) {
+if (
+    quantity <
+    minimum
+) {
 
-            return res.status(400).json({
+    return res.status(400).json({
 
-                success: false,
+        success: false,
 
-                message:
-                    `Minimum order is ${minimum} ${item.unit}.`
+        message:
+            `Minimum order is ${minimum} ${item.unit}.`
 
-            });
-        }
+    });
 
-
+}
         const available =
             Number(
-                item.available_quantity
+                item.available_quantity || 0
             );
 
 
@@ -810,6 +930,7 @@ async function updateCartItem(
                     `Only ${available} ${item.unit} is available.`
 
             });
+
         }
 
 
@@ -825,7 +946,6 @@ async function updateCartItem(
                 unit_price = ?
 
             WHERE id = ?
-
             `,
 
             [
@@ -863,11 +983,26 @@ async function updateCartItem(
             success: false,
 
             message:
-                "Unable to update cart."
+                error.message ||
+                "Unable to update cart.",
+
+            error: {
+
+                code:
+                    error.code,
+
+                errno:
+                    error.errno,
+
+                sqlMessage:
+                    error.sqlMessage
+
+            }
 
         });
 
     }
+
 }
 
 
@@ -885,7 +1020,21 @@ async function removeCartItem(
     try {
 
         const userId =
-            req.user.userId;
+            getUserId(req);
+
+
+        if (!userId) {
+
+            return res.status(401).json({
+
+                success: false,
+
+                message:
+                    "Authentication required."
+
+            });
+
+        }
 
 
         const itemId =
@@ -907,6 +1056,7 @@ async function removeCartItem(
                     "Invalid cart item."
 
             });
+
         }
 
 
@@ -925,7 +1075,6 @@ async function removeCartItem(
             WHERE ci.id = ?
 
             AND c.user_id = ?
-
             `,
 
             [
@@ -948,6 +1097,7 @@ async function removeCartItem(
                     "Cart item not found."
 
             });
+
         }
 
 
@@ -974,11 +1124,26 @@ async function removeCartItem(
             success: false,
 
             message:
-                "Unable to remove cart item."
+                error.message ||
+                "Unable to remove cart item.",
+
+            error: {
+
+                code:
+                    error.code,
+
+                errno:
+                    error.errno,
+
+                sqlMessage:
+                    error.sqlMessage
+
+            }
 
         });
 
     }
+
 }
 
 
@@ -996,7 +1161,21 @@ async function clearCart(
     try {
 
         const userId =
-            req.user.userId;
+            getUserId(req);
+
+
+        if (!userId) {
+
+            return res.status(401).json({
+
+                success: false,
+
+                message:
+                    "Authentication required."
+
+            });
+
+        }
 
 
         const [
@@ -1011,7 +1190,6 @@ async function clearCart(
             WHERE user_id = ?
 
             LIMIT 1
-
             `,
 
             [
@@ -1033,6 +1211,7 @@ async function clearCart(
                     "Cart is already empty."
 
             });
+
         }
 
 
@@ -1042,7 +1221,6 @@ async function clearCart(
             DELETE FROM cart_items
 
             WHERE cart_id = ?
-
             `,
 
             [
@@ -1075,13 +1253,34 @@ async function clearCart(
             success: false,
 
             message:
-                "Unable to clear cart."
+                error.message ||
+                "Unable to clear cart.",
+
+            error: {
+
+                code:
+                    error.code,
+
+                errno:
+                    error.errno,
+
+                sqlMessage:
+                    error.sqlMessage
+
+            }
 
         });
 
     }
+
 }
 
+
+/*
+==================================================
+EXPORT
+==================================================
+*/
 
 module.exports = {
 

@@ -1,16 +1,9 @@
 const crypto =
     require("crypto");
 
-const pool =
+const {pool} =
     require("../config/db");
-
-
-/*
-==================================================
-GENERATE REFERENCE NUMBER
-==================================================
-*/
-
+    
 function generateReferenceNumber() {
 
     const date =
@@ -121,7 +114,7 @@ async function createOrder(
 
                 id,
 
-                name,
+                full_name AS name,
 
                 email,
 
@@ -733,42 +726,25 @@ async function createOrder(
             ======================================
             */
 
-            const [
-                stockUpdate
-            ] = await connection.execute(
-
-                `
-                UPDATE inventory
-
-                SET
-
-                    available_quantity =
-                        available_quantity - ?,
-
-                    reserved_quantity =
-                        reserved_quantity + ?
-
-                WHERE product_id = ?
-
-                AND available_quantity >= ?
-
-                `,
-
-                [
-
-                    quantity,
-
-                    quantity,
-
-                    item.product_id,
-
-                    quantity
-
-                ]
-
-            );
-
-
+const [
+    stockUpdate
+] = await connection.execute(
+    `
+    UPDATE inventory
+    SET
+        reserved_quantity =
+            reserved_quantity + ?
+    WHERE product_id = ?
+    AND seller_id = ?
+    AND quantity - reserved_quantity >= ?
+    `,
+    [
+        quantity,
+        item.product_id,
+        sellerId,
+        quantity
+    ]
+);
             if (
                 stockUpdate.affectedRows !== 1
             ) {
@@ -956,10 +932,923 @@ async function createOrder(
         connection.release();
     }
 }
+/*
+==================================================
+GET SINGLE CUSTOMER ORDER DETAILS
+==================================================
+*/
+
+async function getOrderDetails(
+    req,
+    res
+) {
+
+    try {
+
+        /*
+        ==========================================
+        GET AUTHENTICATED CUSTOMER ID
+        ==========================================
+        */
+
+        const customerId =
+            req.user?.userId ||
+            req.user?.id ||
+            req.user?.user_id;
 
 
+        if (!customerId) {
+
+            return res.status(401).json({
+
+                success: false,
+
+                message:
+                    "Customer authentication information not found."
+
+            });
+
+        }
+
+
+        /*
+        ==========================================
+        GET REFERENCE NUMBER FROM URL
+        ==========================================
+        */
+
+        const {
+            referenceNo
+        } = req.params;
+
+
+        if (!referenceNo) {
+
+            return res.status(400).json({
+
+                success: false,
+
+                message:
+                    "Order reference number is required."
+
+            });
+
+        }
+
+
+        /*
+        ==========================================
+        GET ORDER
+        ==========================================
+        
+        IMPORTANT:
+        customer_id is also checked.
+
+        This prevents one customer from viewing
+        another customer's order by changing the URL.
+        */
+
+        const [
+            orders
+        ] = await pool.execute(
+
+            `
+            SELECT
+
+                o.id,
+
+                o.reference_no,
+
+                o.customer_id,
+
+                o.seller_id,
+
+                o.subtotal,
+
+                o.delivery_charge,
+
+                o.total_amount,
+
+                o.status,
+
+                o.customer_name,
+
+                o.customer_phone,
+
+                o.customer_email,
+
+                o.delivery_address,
+
+                o.delivery_city,
+
+                o.delivery_state,
+
+                o.delivery_pincode,
+
+                o.otp_verified,
+
+                o.seller_accepted_at,
+
+                o.cancelled_at,
+
+                o.created_at,
+
+                o.updated_at,
+
+                u.full_name AS seller_name,
+
+                u.email AS seller_email,
+
+                u.phone AS seller_phone
+
+            FROM orders o
+
+            LEFT JOIN users u
+                ON u.id = o.seller_id
+
+            WHERE
+                o.reference_no = ?
+
+            AND
+                o.customer_id = ?
+
+            LIMIT 1
+
+            `,
+
+            [
+                referenceNo,
+                customerId
+            ]
+
+        );
+
+
+        /*
+        ==========================================
+        ORDER NOT FOUND
+        ==========================================
+        */
+
+        if (
+            orders.length === 0
+        ) {
+
+            return res.status(404).json({
+
+                success: false,
+
+                message:
+                    "Order not found."
+
+            });
+
+        }
+
+
+        const order =
+            orders[0];
+
+
+        /*
+        ==========================================
+        GET ORDER ITEMS
+        ==========================================
+        */
+
+        const [
+            items
+        ] = await pool.execute(
+
+            `
+            SELECT
+
+                id,
+
+                order_id,
+
+                product_id,
+
+                product_name,
+
+                sku,
+
+                quantity,
+
+                unit,
+
+                unit_price,
+
+                subtotal,
+
+                created_at
+
+            FROM order_items
+
+            WHERE order_id = ?
+
+            ORDER BY id ASC
+
+            `,
+
+            [
+                order.id
+            ]
+
+        );
+
+
+        /*
+        ==========================================
+        FORMAT RESPONSE
+        ==========================================
+        */
+
+        return res.status(200).json({
+
+            success: true,
+
+            order: {
+
+                id:
+                    order.id,
+
+                referenceNo:
+                    order.reference_no,
+
+                status:
+                    order.status,
+
+                customer: {
+
+                    id:
+                        order.customer_id,
+
+                    name:
+                        order.customer_name,
+
+                    phone:
+                        order.customer_phone,
+
+                    email:
+                        order.customer_email
+
+                },
+
+                seller: {
+
+                    id:
+                        order.seller_id,
+
+                    name:
+                        order.seller_name,
+
+                    email:
+                        order.seller_email,
+
+                    phone:
+                        order.seller_phone
+
+                },
+
+                items:
+                    items.map(
+                        item => ({
+
+                            id:
+                                item.id,
+
+                            orderId:
+                                item.order_id,
+
+                            productId:
+                                item.product_id,
+
+                            productName:
+                                item.product_name,
+
+                            sku:
+                                item.sku,
+
+                            quantity:
+                                Number(
+                                    item.quantity
+                                ),
+
+                            unit:
+                                item.unit,
+
+                            unitPrice:
+                                Number(
+                                    item.unit_price
+                                ),
+
+                            subtotal:
+                                Number(
+                                    item.subtotal
+                                ),
+
+                            createdAt:
+                                item.created_at
+
+                        })
+                    ),
+
+                subtotal:
+                    Number(
+                        order.subtotal
+                    ),
+
+                deliveryCharge:
+                    Number(
+                        order.delivery_charge
+                    ),
+
+                totalAmount:
+                    Number(
+                        order.total_amount
+                    ),
+
+                delivery: {
+
+                    address:
+                        order.delivery_address,
+
+                    city:
+                        order.delivery_city,
+
+                    state:
+                        order.delivery_state,
+
+                    pincode:
+                        order.delivery_pincode
+
+                },
+
+                otpVerified:
+                    Boolean(
+                        order.otp_verified
+                    ),
+
+                sellerAcceptedAt:
+                    order.seller_accepted_at,
+
+                cancelledAt:
+                    order.cancelled_at,
+
+                createdAt:
+                    order.created_at,
+
+                updatedAt:
+                    order.updated_at
+
+            }
+
+        });
+
+
+    } catch (error) {
+
+        console.error(
+            "GET ORDER DETAILS ERROR:",
+            error
+        );
+
+
+        return res.status(500).json({
+
+            success: false,
+
+            message:
+                "Unable to load order details.",
+
+            error: {
+
+                message:
+                    error.message,
+
+                code:
+                    error.code,
+
+                sqlMessage:
+                    error.sqlMessage
+
+            }
+
+        });
+
+    }
+
+}
+async function getMyOrders(
+    req,
+    res
+) {
+
+    try {
+
+        /*
+        ==========================================
+        GET AUTHENTICATED CUSTOMER ID
+        ==========================================
+        */
+
+        const customerId =
+            req.user?.userId ||
+            req.user?.id ||
+            req.user?.user_id;
+
+
+        console.log(
+            "GET MY ORDERS - USER:",
+            req.user
+        );
+
+        console.log(
+            "GET MY ORDERS - CUSTOMER ID:",
+            customerId
+        );
+
+
+        if (!customerId) {
+
+            return res.status(401).json({
+
+                success: false,
+
+                message:
+                    "Customer authentication information not found."
+
+            });
+
+        }
+
+
+        /*
+        ==========================================
+        GET ORDERS
+        ==========================================
+        */
+
+        const [
+            orders
+        ] = await pool.execute(
+
+            `
+            SELECT
+
+                o.id,
+
+                o.reference_no,
+
+                o.customer_id,
+
+                o.seller_id,
+
+                o.subtotal,
+
+                o.delivery_charge,
+
+                o.total_amount,
+
+                o.status,
+
+                o.customer_name,
+
+                o.customer_phone,
+
+                o.customer_email,
+
+                o.delivery_address,
+
+                o.delivery_city,
+
+                o.delivery_state,
+
+                o.delivery_pincode,
+
+                o.otp_verified,
+
+                o.seller_accepted_at,
+
+                o.cancelled_at,
+
+                o.created_at,
+
+                o.updated_at
+
+            FROM orders o
+
+            WHERE o.customer_id = ?
+
+            ORDER BY
+                o.created_at DESC
+
+            `,
+
+            [
+                customerId
+            ]
+
+        );
+
+
+        /*
+        ==========================================
+        SUCCESS
+        ==========================================
+        */
+
+        return res.status(200).json({
+
+            success: true,
+
+            orders
+
+        });
+
+
+    } catch (error) {
+
+        console.error(
+            "GET CUSTOMER ORDERS ERROR:",
+            error
+        );
+
+
+        return res.status(500).json({
+
+            success: false,
+
+            message:
+                "Unable to load your orders.",
+
+            error: {
+
+                message:
+                    error.message,
+
+                code:
+                    error.code,
+
+                sqlMessage:
+                    error.sqlMessage
+
+            }
+
+        });
+
+    }
+
+}
+/* =========================================
+   CANCEL ORDER - CUSTOMER
+========================================= */
+
+async function cancelOrder(req, res) {
+
+    const connection =
+        await pool.getConnection();
+
+    try {
+
+        const customerId =
+            req.user.userId;
+
+        const {
+            referenceNo
+        } = req.params;
+
+
+        await connection.beginTransaction();
+
+
+        /* =====================================
+           GET ORDER
+        ===================================== */
+
+        const [orders] =
+            await connection.execute(
+
+                `
+                SELECT
+
+                    id,
+                    reference_no,
+                    customer_id,
+                    seller_id,
+                    status,
+                    total_amount
+
+                FROM orders
+
+                WHERE reference_no = ?
+
+                AND customer_id = ?
+
+                LIMIT 1
+
+                `,
+
+                [
+                    referenceNo,
+                    customerId
+                ]
+
+            );
+
+
+        if (
+            orders.length === 0
+        ) {
+
+            await connection.rollback();
+
+            return res.status(404).json({
+
+                success: false,
+
+                message:
+                    "Order not found."
+
+            });
+
+        }
+
+
+        const order =
+            orders[0];
+
+
+        /* =====================================
+           ALREADY CANCELLED
+        ===================================== */
+
+        if (
+            order.status ===
+            "CANCELLED"
+        ) {
+
+            await connection.rollback();
+
+            return res.status(400).json({
+
+                success: false,
+
+                message:
+                    "This order is already cancelled."
+
+            });
+
+        }
+
+
+        /* =====================================
+           CHECK CANCELLATION STATUS
+        ===================================== */
+
+        const cancellableStatuses = [
+
+            "PENDING_SELLER_ACCEPTANCE",
+
+            "ACCEPTED",
+
+            "PROCESSING"
+
+        ];
+
+
+        if (
+            !cancellableStatuses.includes(
+                order.status
+            )
+        ) {
+
+            await connection.rollback();
+
+            return res.status(400).json({
+
+                success: false,
+
+                message:
+                    "This order can no longer be cancelled."
+
+            });
+
+        }
+
+
+        /* =====================================
+           GET ORDER ITEMS
+        ===================================== */
+
+        const [items] =
+            await connection.execute(
+
+                `
+                SELECT
+
+                    product_id,
+                    quantity
+
+                FROM order_items
+
+                WHERE order_id = ?
+
+                `,
+
+                [
+                    order.id
+                ]
+
+            );
+
+
+        /* =====================================
+           RELEASE RESERVED INVENTORY
+        ===================================== */
+
+        for (
+            const item of items
+        ) {
+
+            await connection.execute(
+
+                `
+                UPDATE inventory
+
+                SET reserved_quantity =
+                    GREATEST(
+                        reserved_quantity - ?,
+                        0
+                    )
+
+                WHERE product_id = ?
+
+                AND seller_id = ?
+
+                `,
+
+                [
+
+                    Number(
+                        item.quantity
+                    ),
+
+                    item.product_id,
+
+                    order.seller_id
+
+                ]
+
+            );
+
+        }
+
+
+        /* =====================================
+           UPDATE ORDER STATUS
+        ===================================== */
+
+        await connection.execute(
+
+            `
+            UPDATE orders
+
+            SET
+
+                status = 'CANCELLED',
+
+                cancelled_at = NOW(),
+
+                updated_at = NOW()
+
+            WHERE id = ?
+
+            AND customer_id = ?
+
+            `,
+
+            [
+
+                order.id,
+
+                customerId
+
+            ]
+
+        );
+
+
+        /* =====================================
+           SELLER NOTIFICATION
+        ===================================== */
+
+/* =====================================
+   SELLER NOTIFICATION
+===================================== */
+
+await connection.execute(
+
+    `
+    INSERT INTO notifications
+    (
+        user_id,
+        type,
+        title,
+        message,
+        reference_no,
+        order_id,
+        is_read,
+        created_at
+    )
+
+    VALUES
+    (
+        ?,
+        'ORDER_CANCELLED',
+        'Order Cancelled',
+        ?,
+        ?,
+        ?,
+        0,
+        NOW()
+    )
+
+    `,
+
+    [
+
+        order.seller_id,
+
+        `Order ${order.reference_no} has been cancelled by the customer.`,
+
+        order.reference_no,
+
+        order.id
+
+    ]
+
+);
+
+        await connection.commit();
+
+
+        return res.json({
+
+            success: true,
+
+            message:
+                "Order cancelled successfully.",
+
+            order: {
+
+                id:
+                    order.id,
+
+                referenceNo:
+                    order.reference_no,
+
+                status:
+                    "CANCELLED"
+
+            }
+
+        });
+
+
+    } catch (error) {
+
+        await connection.rollback();
+
+
+        console.error(
+            "CANCEL ORDER ERROR:",
+            error
+        );
+
+
+        return res.status(500).json({
+
+            success: false,
+
+            message:
+                "Unable to cancel order."
+
+        });
+
+    } finally {
+
+        connection.release();
+
+    }
+
+}
 module.exports = {
 
-    createOrder
+    createOrder,
+    getMyOrders,
+    getOrderDetails,
+    cancelOrder
 
 };

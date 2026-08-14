@@ -1,22 +1,60 @@
 const express = require("express");
 
-const {
-    getCurrentUser
-} = require("../controllers/userController");
+const router =
+    express.Router();
 
 const authenticateToken =
     require("../middleware/authMiddleware");
 
+const upload =
+    require("../middleware/profileUpload");
 
-const router =
-    express.Router();
+const {
+    getMe,
+    updateProfile,
+    uploadProfilePicture
+} = require("../controllers/userController");
 
+
+/*
+=========================================
+GET CURRENT USER
+=========================================
+*/
 
 router.get(
     "/me",
     authenticateToken,
-    getCurrentUser
+    getMe
 );
 
 
-module.exports = router;
+/*
+=========================================
+UPDATE PROFILE
+=========================================
+*/
+
+router.put(
+    "/profile",
+    authenticateToken,
+    updateProfile
+);
+
+
+/*
+=========================================
+UPLOAD PROFILE PICTURE
+=========================================
+*/
+
+router.post(
+    "/profile/avatar",
+    authenticateToken,
+    upload.single("profilePicture"),
+    uploadProfilePicture
+);
+
+
+module.exports =
+    router;

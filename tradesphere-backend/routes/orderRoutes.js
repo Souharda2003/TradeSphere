@@ -9,7 +9,13 @@ const authenticateToken =
 
 
 const {
-    createOrder
+
+    createOrder,
+
+    getMyOrders,
+    getOrderDetails,
+    cancelOrder
+
 } = require(
     "../controllers/orderController"
 );
@@ -17,17 +23,46 @@ const {
 
 /*
 =========================================
-CREATE ORDER
+CUSTOMER ORDERS
 =========================================
 */
 
-router.post(
+router.get(
 
-    "/",
+    "/my",
 
     authenticateToken,
 
+    getMyOrders
+
+);
+/*
+=========================================
+SINGLE CUSTOMER ORDER DETAILS
+=========================================
+*/
+
+router.get(
+
+    "/:referenceNo",
+
+    authenticateToken,
+
+    getOrderDetails
+
+);
+router.post(
+    "/",
+    authenticateToken,
     createOrder
+    );
+router.put(
+
+    "/:referenceNo/cancel",
+
+    authenticateToken,
+
+    cancelOrder
 
 );
 

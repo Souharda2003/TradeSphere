@@ -3,11 +3,9 @@ const {
 } = require("@getbrevo/brevo");
 
 
-/*
-==================================================
-BREVO CLIENT
-==================================================
-*/
+/* =========================================
+   BREVO CLIENT
+========================================= */
 
 const brevo =
     new BrevoClient({
@@ -20,11 +18,9 @@ const brevo =
     });
 
 
-/*
-==================================================
-SEND EMAIL
-==================================================
-*/
+/* =========================================
+   GENERIC SEND EMAIL
+========================================= */
 
 async function sendEmail({
 
@@ -36,11 +32,15 @@ async function sendEmail({
 
     htmlContent,
 
-    textContent
+    textContent = ""
 
 }) {
 
     try {
+
+        /* ================================
+           ENV CHECK
+        ================================= */
 
         if (
             !process.env.BREVO_API_KEY
@@ -63,6 +63,45 @@ async function sendEmail({
 
         }
 
+
+        if (
+            !to
+        ) {
+
+            throw new Error(
+                "Recipient email is missing."
+            );
+
+        }
+
+
+        console.log(
+            "================================="
+        );
+
+        console.log(
+            "BREVO EMAIL"
+        );
+
+        console.log(
+            "From:",
+            process.env.EMAIL_FROM
+        );
+
+        console.log(
+            "To:",
+            to
+        );
+
+        console.log(
+            "Subject:",
+            subject
+        );
+
+
+        /* ================================
+           SEND EMAIL
+        ================================= */
 
         const response =
             await brevo
@@ -87,24 +126,34 @@ async function sendEmail({
                                 to,
 
                             name:
-                                toName
+                                toName || "Customer"
 
                         }
 
                     ],
 
-                    subject,
+                    subject:
+                        subject,
 
-                    htmlContent,
+                    htmlContent:
+                        htmlContent,
 
-                    textContent
+                    textContent:
+                        textContent
 
                 });
 
 
         console.log(
-            "Brevo email sent:",
+            "BREVO EMAIL SENT SUCCESSFULLY"
+        );
+
+        console.log(
             response
+        );
+
+        console.log(
+            "================================="
         );
 
 
@@ -114,8 +163,33 @@ async function sendEmail({
     } catch (error) {
 
         console.error(
-            "BREVO EMAIL ERROR:",
+            "================================="
+        );
+
+        console.error(
+            "BREVO EMAIL ERROR"
+        );
+
+        console.error(
+            "MESSAGE:",
+            error.message
+        );
+
+        console.error(
+            "STATUS:",
+            error.statusCode ||
+            error.response?.status
+        );
+
+        console.error(
+            "BODY:",
+            error.response?.data ||
+            error.body ||
             error
+        );
+
+        console.error(
+            "================================="
         );
 
 
@@ -126,11 +200,9 @@ async function sendEmail({
 }
 
 
-/*
-==================================================
-SEND ORDER OTP
-==================================================
-*/
+/* =========================================
+   SEND ORDER OTP
+========================================= */
 
 async function sendOrderOTP({
 
@@ -142,214 +214,282 @@ async function sendOrderOTP({
 
 }) {
 
+    /* ================================
+       VALIDATION
+    ================================= */
+
+    if (
+        !email
+    ) {
+
+        throw new Error(
+            "Customer email is missing."
+        );
+
+    }
+
+
+    if (
+        !otp
+    ) {
+
+        throw new Error(
+            "OTP is missing."
+        );
+
+    }
+
+
+    const name =
+        customerName ||
+        "Customer";
+
+
+    /* ================================
+       HTML EMAIL
+    ================================= */
+
     const htmlContent = `
 
-        <!DOCTYPE html>
+<!DOCTYPE html>
 
-        <html>
+<html>
 
-        <head>
+<head>
 
-            <meta charset="UTF-8">
+<meta charset="UTF-8">
 
-            <meta name="viewport"
-                  content="width=device-width,
-                           initial-scale=1.0">
+<meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+/>
 
-            <title>
-                TradeSphere OTP
-            </title>
+<title>
+    TradeSphere OTP
+</title>
 
-        </head>
+</head>
 
 
-        <body style="
-            margin:0;
-            padding:0;
-            background:#f8fafc;
-            font-family:Arial,
-                         Helvetica,
-                         sans-serif;
-        ">
+<body
+style="
+margin:0;
+padding:0;
+background:#f8fafc;
+font-family:Arial,Helvetica,sans-serif;
+"
+>
 
 
-            <div style="
-                padding:40px 15px;
-            ">
+<div
+style="
+padding:40px 15px;
+"
+>
 
 
-                <div style="
-                    max-width:540px;
-                    margin:auto;
-                    background:#ffffff;
-                    border:1px solid #e2e8f0;
-                    border-radius:20px;
-                    padding:40px;
-                ">
+<div
+style="
+max-width:540px;
+margin:auto;
+background:#ffffff;
+border:1px solid #e2e8f0;
+border-radius:20px;
+padding:40px;
+"
+>
 
 
-                    <div style="
-                        font-size:25px;
-                        font-weight:900;
-                        color:#0f172a;
-                    ">
+<div
+style="
+font-size:25px;
+font-weight:900;
+color:#0f172a;
+"
+>
 
-                        TradeSphere
+TradeSphere
 
-                    </div>
+</div>
 
 
-                    <div style="
-                        margin-top:5px;
-                        color:#64748b;
-                        font-size:12px;
-                    ">
+<div
+style="
+margin-top:5px;
+color:#64748b;
+font-size:12px;
+"
+>
 
-                        Export & Import Marketplace
+Export & Import Marketplace
 
-                    </div>
+</div>
 
 
-                    <div style="
-                        height:1px;
-                        background:#e2e8f0;
-                        margin:25px 0;
-                    "></div>
+<div
+style="
+height:1px;
+background:#e2e8f0;
+margin:25px 0;
+"
+>
+</div>
 
 
-                    <h2 style="
-                        margin:0;
-                        color:#0f172a;
-                        font-size:22px;
-                    ">
+<h2
+style="
+margin:0;
+color:#0f172a;
+font-size:22px;
+"
+>
 
-                        Verify your order
+Verify your order
 
-                    </h2>
+</h2>
 
 
-                    <p style="
-                        color:#475569;
-                        line-height:1.7;
-                        font-size:14px;
-                    ">
+<p
+style="
+color:#475569;
+line-height:1.7;
+font-size:14px;
+"
+>
 
-                        Hello
-                        <strong>
-                            ${customerName || "Customer"}
-                        </strong>,
+Hello
+<strong>
+${name}
+</strong>,
 
-                    </p>
+</p>
 
 
-                    <p style="
-                        color:#64748b;
-                        line-height:1.7;
-                        font-size:13px;
-                    ">
+<p
+style="
+color:#64748b;
+line-height:1.7;
+font-size:13px;
+"
+>
 
-                        We received a request to
-                        verify your TradeSphere order.
+We received a request to verify
+your TradeSphere order.
 
-                        Enter the following OTP
-                        on the checkout page.
+Enter the following OTP on
+the checkout page.
 
-                    </p>
+</p>
 
 
-                    <div style="
-                        margin:30px 0;
-                        padding:20px;
-                        background:#eff6ff;
-                        border:1px solid #dbeafe;
-                        border-radius:14px;
-                        text-align:center;
-                    ">
+<div
+style="
+margin:30px 0;
+padding:20px;
+background:#eff6ff;
+border:1px solid #dbeafe;
+border-radius:14px;
+text-align:center;
+"
+>
 
 
-                        <div style="
-                            color:#64748b;
-                            font-size:10px;
-                            font-weight:700;
-                            letter-spacing:2px;
-                        ">
+<div
+style="
+color:#64748b;
+font-size:10px;
+font-weight:700;
+letter-spacing:2px;
+"
+>
 
-                            VERIFICATION CODE
+VERIFICATION CODE
 
-                        </div>
+</div>
 
 
-                        <div style="
-                            margin-top:10px;
-                            color:#1d4ed8;
-                            font-size:34px;
-                            font-weight:900;
-                            letter-spacing:8px;
-                        ">
+<div
+style="
+margin-top:10px;
+color:#1d4ed8;
+font-size:34px;
+font-weight:900;
+letter-spacing:8px;
+"
+>
 
-                            ${otp}
+${otp}
 
-                        </div>
+</div>
 
 
-                    </div>
+</div>
 
 
-                    <p style="
-                        color:#64748b;
-                        font-size:12px;
-                    ">
+<p
+style="
+color:#64748b;
+font-size:12px;
+"
+>
 
-                        This OTP is valid for
-                        <strong>
-                            5 minutes
-                        </strong>.
+This OTP is valid for
+<strong>
+5 minutes
+</strong>.
 
-                    </p>
+</p>
 
 
-                    <p style="
-                        color:#94a3b8;
-                        font-size:11px;
-                        line-height:1.6;
-                    ">
+<p
+style="
+color:#94a3b8;
+font-size:11px;
+line-height:1.6;
+"
+>
 
-                        If you did not request this
-                        verification code, you can
-                        safely ignore this email.
+If you did not request this
+verification code, you can
+safely ignore this email.
 
-                    </p>
+</p>
 
 
-                    <div style="
-                        margin-top:30px;
-                        color:#cbd5e1;
-                        font-size:10px;
-                        text-align:center;
-                    ">
+<div
+style="
+margin-top:30px;
+color:#cbd5e1;
+font-size:10px;
+text-align:center;
+"
+>
 
-                        © TradeSphere
+© TradeSphere
 
-                    </div>
+</div>
 
 
-                </div>
+</div>
 
-            </div>
+</div>
 
+</body>
 
-        </body>
+</html>
 
-        </html>
+`;
 
-    `;
 
+    /* ================================
+       TEXT EMAIL
+    ================================= */
 
     const textContent =
 
-        `TradeSphere Order Verification
+`TradeSphere Order Verification
 
-Hello ${customerName || "Customer"},
+Hello ${name},
 
 Your order verification OTP is:
 
@@ -361,25 +501,35 @@ If you did not request this OTP,
 please ignore this email.`;
 
 
+    /* ================================
+       SEND
+    ================================= */
+
     return sendEmail({
 
         to:
             email,
 
         toName:
-            customerName,
+            name,
 
         subject:
             "TradeSphere - Order Verification OTP",
 
-        htmlContent,
+        htmlContent:
+            htmlContent,
 
-        textContent
+        textContent:
+            textContent
 
     });
 
 }
 
+
+/* =========================================
+   EXPORTS
+========================================= */
 
 module.exports = {
 

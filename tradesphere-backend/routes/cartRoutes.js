@@ -9,89 +9,44 @@ const authenticateToken =
 
 
 const {
-
     getCart,
-
     addToCart,
-
     updateCartItem,
-
     removeCartItem,
-
     clearCart
-
 } = require(
     "../controllers/cartController"
 );
 
-
-/*
-=========================================
-ALL CART ROUTES REQUIRE LOGIN
-=========================================
-*/
-
-router.use(
-    authenticateToken
-);
-
-
-/*
-=========================================
-GET CART
-=========================================
-*/
-
 router.get(
     "/",
+    authenticateToken,
     getCart
 );
 
 
-/*
-=========================================
-ADD TO CART
-=========================================
-*/
-
 router.post(
     "/",
+    authenticateToken,
     addToCart
 );
 
-
-/*
-=========================================
-UPDATE CART ITEM
-=========================================
-*/
-
 router.put(
     "/:itemId",
+    authenticateToken,
     updateCartItem
 );
 
-
-/*
-=========================================
-REMOVE CART ITEM
-=========================================
-*/
-
 router.delete(
     "/:itemId",
+    authenticateToken,
     removeCartItem
 );
 
 
-/*
-=========================================
-CLEAR CART
-=========================================
-*/
-
 router.delete(
     "/",
+    authenticateToken,
     clearCart
 );
 
