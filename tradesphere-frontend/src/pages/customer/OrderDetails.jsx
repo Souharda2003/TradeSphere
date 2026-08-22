@@ -1,14 +1,8 @@
 import {
     useEffect,
+    useMemo,
     useState
 } from "react";
-
-
-import {
-    useNavigate,
-    useParams
-} from "react-router-dom";
-
 
 import {
     ArrowLeft,
@@ -21,22 +15,38 @@ import {
     Clock,
     Truck,
     XCircle,
-    AlertTriangle
+    AlertTriangle,
+    Download,
+    RotateCcw,
+    FileText,
+    Loader2,
+    Printer
 } from "lucide-react";
 
+import {
+    useNavigate,
+    useParams
+} from "react-router-dom";
 
-import api
-    from "../../services/api";
-
-
+import api from "../../services/api";
+import Invoice from "../../components/invoice/Invoice";
 import "../../styles/orderDetails.css";
+
+
+const RETURN_WINDOW_DAYS = 7;
+
+const INVOICE_AVAILABLE_STATUSES = [
+    "SHIPPED",
+    "DELIVERED",
+    "RETURN_REQUESTED",
+    "RETURN_ACCEPTED",
+    "RETURN_REJECTED"
+];
 
 
 function OrderDetails() {
 
-    const navigate =
-        useNavigate();
-
+    const navigate = useNavigate();
 
     const {
         referenceNo
@@ -46,42 +56,92 @@ function OrderDetails() {
     const [order, setOrder] =
         useState(null);
 
-
     const [loading, setLoading] =
         useState(true);
 
-
     const [error, setError] =
         useState("");
-    const [showCancelModal, setShowCancelModal] =
-        useState(false);
-    const [cancellingOrder, setCancellingOrder] =
-    useState(false);
+
+
+    /*
+    ==================================================
+    CANCEL
+    ==================================================
+    */
+
+    const [
+        showCancelModal,
+        setShowCancelModal
+    ] = useState(false);
+
+    const [
+        cancellingOrder,
+        setCancellingOrder
+    ] = useState(false);
+
+
+    /*
+    ==================================================
+    RETURN
+    ==================================================
+    */
+
+    const [
+        returnRequest,
+        setReturnRequest
+    ] = useState(null);
+
+    const [
+        showReturnModal,
+        setShowReturnModal
+    ] = useState(false);
+
+    const [
+        returnReason,
+        setReturnReason
+    ] = useState("");
+
+    const [
+        submittingReturn,
+        setSubmittingReturn
+    ] = useState(false);
+
+    const [
+        returnError,
+        setReturnError
+    ] = useState("");
+
+
+    /*
+    ==================================================
+    INVOICE
+    ==================================================
+    */
+
+    const [
+        showInvoice,
+        setShowInvoice
+    ] = useState(false);
+
+
+    /*
+    ==================================================
+    LOAD ORDER
+    ==================================================
+    */
+
     useEffect(() => {
 
-    loadOrder();
+        loadOrder();
+
+    }, [referenceNo]);
 
 
-    const interval =
-        setInterval(
-            () => {
-
-                loadOrder();
-
-            },
-            10000
-        );
-
-
-    return () => {
-
-        clearInterval(
-            interval
-        );
-
-    };
-
-}, [referenceNo]);
+    /*
+    ==================================================
+    LOAD ORDER
+    ==================================================
+    */
 
     async function loadOrder() {
 
@@ -94,16 +154,10 @@ function OrderDetails() {
 
             const response =
                 await api.get(
-
-                    `/orders/${referenceNo}`
-
+                    `/orders/${encodeURIComponent(
+                        referenceNo
+                    )}`
                 );
-
-
-            console.log(
-                "ORDER DETAILS RESPONSE:",
-                response.data
-            );
 
 
             if (
@@ -111,19 +165,23 @@ function OrderDetails() {
             ) {
 
                 throw new Error(
-
                     response.data?.message ||
-
                     "Unable to load order."
-
                 );
 
             }
 
 
+            const loadedOrder =
+                response.data.order;
+
+
             setOrder(
-                response.data.order
+                loadedOrder
             );
+
+
+            await loadReturnRequest();
 
 
         } catch (error) {
@@ -170,89 +228,233 @@ function OrderDetails() {
     }
 
 
-    /* =========================================
-   CANCEL ORDER
-========================================= */
+    /*
+    ==================================================
+    LOAD RETURN REQUEST
+    ==================================================
+    */
 
-async function cancelOrder() {
+    async function loadReturnRequest() {
 
-    if (!order?.referenceNo) {
-        return;
-    }
+        try {
 
-    try {
+            const response =
+                await api.get(
+                    `/order-returns/${encodeURIComponent(
+                        referenceNo
+                    )}/return`
+                );
 
-        setCancellingOrder(true);
 
-        setError("");
+            if (
+                response.data?.success
+            ) {
 
-        const response =
-            await api.put(
-                `/orders/${order.referenceNo}/cancel`
-            );
+                setReturnRequest(
+                    response.data.returnRequest ||
+                    null
+                );
 
-        console.log(
-            "CANCEL ORDER RESPONSE:",
-            response.data
-        );
+            } else {
 
-        if (
-            response.data?.success
-        ) {
+                setReturnRequest(
+                    null
+                );
 
-            setOrder(
-                previous => ({
+            }
 
-                    ...previous,
 
-                    status: "CANCELLED",
+        } catch (error) {
 
-                    cancelledAt:
-                        new Date().toISOString()
+            if (
+                error.response?.status ===
+                404
+            ) {
 
-                })
-            );
+                setReturnRequest(
+                    null
+                );
 
-            setShowCancelModal(false);
+                return;
 
-        } else {
+            }
 
-            setError(
-                response.data?.message ||
-                "Unable to cancel order."
+
+            console.warn(
+                "LOAD RETURN REQUEST ERROR:",
+                error.response?.data ||
+                error.message
             );
 
         }
 
-    } catch (error) {
+    }
 
-        console.error(
-            "CANCEL ORDER ERROR:",
-            error
-        );
 
-        setError(
-            error.response?.data?.message ||
-            "Unable to cancel order."
-        );
+    /*
+    ==================================================
+    CANCEL ORDER
+    ==================================================
+    */
 
-    } finally {
+    async function cancelOrder() {
 
-        setCancellingOrder(false);
+        if (
+            !order?.referenceNo
+        ) {
+
+            return;
+
+        }
+
+
+        try {
+
+            setCancellingOrder(
+                true
+            );
+
+            setError("");
+
+
+            const response =
+                await api.put(
+
+                    `/orders/${encodeURIComponent(
+                        order.referenceNo
+                    )}/cancel`
+
+                );
+
+
+            if (
+                response.data?.success
+            ) {
+
+                setOrder(
+                    previous => ({
+
+                        ...previous,
+
+                        status:
+                            "CANCELLED",
+
+                        cancelledAt:
+                            new Date().toISOString()
+
+                    })
+                );
+
+
+                setShowCancelModal(
+                    false
+                );
+
+            } else {
+
+                setError(
+                    response.data?.message ||
+                    "Unable to cancel order."
+                );
+
+            }
+
+
+        } catch (error) {
+
+            console.error(
+                "CANCEL ORDER ERROR:",
+                error
+            );
+
+
+            setError(
+                error.response?.data?.message ||
+                "Unable to cancel order."
+            );
+
+
+        } finally {
+
+            setCancellingOrder(
+                false
+            );
+
+        }
 
     }
+
+
+function openInvoice() {
+
+    console.log(
+        "VIEW INVOICE CLICKED"
+    );
+
+    console.log(
+        "INVOICE ORDER DATA:",
+        order
+    );
+
+    if (!order) {
+
+        setError(
+            "Order information is not available."
+        );
+
+        return;
+
+    }
+
+    if (!invoiceAvailable) {
+
+        setError(
+            "Invoice is not available for this order yet."
+        );
+
+        return;
+
+    }
+
+    setError("");
+
+    setShowInvoice(true);
+
 }
-    function formatMoney(
-        value
-    ) {
+function printInvoice() {
+
+    console.log(
+        "PRINT INVOICE CLICKED"
+    );
+
+    if (!showInvoice) {
+
+        return;
+
+    }
+
+    window.setTimeout(
+        () => {
+
+            window.print();
+
+        },
+        100
+    );
+
+}
+    function formatMoney(value) {
 
         return Number(
             value || 0
         ).toLocaleString(
             "en-IN",
             {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
+                minimumFractionDigits:
+                    2,
+
+                maximumFractionDigits:
+                    2
             }
         );
 
@@ -260,14 +462,12 @@ async function cancelOrder() {
 
 
     /*
-    =========================================
+    ==================================================
     FORMAT DATE
-    =========================================
+    ==================================================
     */
 
-    function formatDate(
-        value
-    ) {
+    function formatDate(value) {
 
         if (!value) {
 
@@ -276,14 +476,32 @@ async function cancelOrder() {
         }
 
 
-        return new Date(
-            value
-        ).toLocaleDateString(
+        const date =
+            new Date(value);
+
+
+        if (
+            Number.isNaN(
+                date.getTime()
+            )
+        ) {
+
+            return "-";
+
+        }
+
+
+        return date.toLocaleDateString(
             "en-IN",
             {
-                day: "2-digit",
-                month: "2-digit",
-                year: "numeric"
+                day:
+                    "2-digit",
+
+                month:
+                    "2-digit",
+
+                year:
+                    "numeric"
             }
         );
 
@@ -291,17 +509,70 @@ async function cancelOrder() {
 
 
     /*
-    =========================================
-    STATUS LABEL
-    =========================================
+    ==================================================
+    FORMAT DATETIME
+    ==================================================
     */
 
-    function getStatusLabel(
-        status
-    ) {
+    function formatDateTime(value) {
+
+        if (!value) {
+
+            return "-";
+
+        }
+
+
+        const date =
+            new Date(value);
+
+
+        if (
+            Number.isNaN(
+                date.getTime()
+            )
+        ) {
+
+            return "-";
+
+        }
+
+
+        return date.toLocaleString(
+            "en-IN",
+            {
+                day:
+                    "2-digit",
+
+                month:
+                    "short",
+
+                year:
+                    "numeric",
+
+                hour:
+                    "2-digit",
+
+                minute:
+                    "2-digit"
+            }
+        );
+
+    }
+
+
+    /*
+    ==================================================
+    STATUS LABEL
+    ==================================================
+    */
+
+    function getStatusLabel(status) {
 
         switch (
-            status
+            String(
+                status || ""
+            ).toUpperCase()
         ) {
 
             case "PENDING_SELLER_ACCEPTANCE":
@@ -339,9 +610,25 @@ async function cancelOrder() {
                 return "Delivered";
 
 
+            case "RETURN_REQUESTED":
+
+                return "Return Requested";
+
+
+            case "RETURN_ACCEPTED":
+
+                return "Return Accepted";
+
+
+            case "RETURN_REJECTED":
+
+                return "Return Rejected";
+
+
             default:
 
-                return status || "Unknown";
+                return status ||
+                    "Unknown";
 
         }
 
@@ -349,18 +636,25 @@ async function cancelOrder() {
 
 
     /*
-    =========================================
+    ==================================================
     STATUS ICON
-    =========================================
+    ==================================================
     */
 
     function StatusIcon() {
 
-        switch (
-            order?.status
-        ) {
+        const status =
+            String(
+                order?.status ||
+                ""
+            ).toUpperCase();
+
+
+        switch (status) {
 
             case "DELIVERED":
+
+            case "RETURN_ACCEPTED":
 
                 return (
                     <CheckCircle
@@ -382,8 +676,19 @@ async function cancelOrder() {
 
             case "CANCELLED":
 
+            case "RETURN_REJECTED":
+
                 return (
                     <XCircle
+                        size={17}
+                    />
+                );
+
+
+            case "RETURN_REQUESTED":
+
+                return (
+                    <RotateCcw
                         size={17}
                     />
                 );
@@ -403,9 +708,452 @@ async function cancelOrder() {
 
 
     /*
-    =========================================
+    ==================================================
+    INVOICE AVAILABLE
+    ==================================================
+    */
+
+    const invoiceAvailable =
+        INVOICE_AVAILABLE_STATUSES.includes(
+            String(
+                order?.status ||
+                ""
+            ).toUpperCase()
+        );
+
+
+    /*
+    ==================================================
+    DELIVERY DATE
+    ==================================================
+    */
+
+    const deliveryDate =
+        order?.deliveredAt ||
+        order?.delivered_at ||
+        null;
+
+
+    /*
+    ==================================================
+    RETURN CALCULATION
+    ==================================================
+
+    IMPORTANT:
+
+    Return deadline = DELIVERY DATE + 7 DAYS
+
+    Not order date + 7 days.
+
+    ==================================================
+    */
+
+    const returnInfo =
+        useMemo(() => {
+
+            if (!order) {
+
+                return {
+
+                    eligible:
+                        false,
+
+                    expired:
+                        false,
+
+                    daysRemaining:
+                        0,
+
+                    deadline:
+                        null,
+
+                    deliveredAt:
+                        null
+
+                };
+
+            }
+
+
+            const status =
+                String(
+                    order.status ||
+                    ""
+                ).toUpperCase();
+
+
+            /*
+            ------------------------------------------
+            ONLY DELIVERED ORDER
+            ------------------------------------------
+            */
+
+            if (
+                status !==
+                "DELIVERED"
+            ) {
+
+                return {
+
+                    eligible:
+                        false,
+
+                    expired:
+                        false,
+
+                    daysRemaining:
+                        0,
+
+                    deadline:
+                        null,
+
+                    deliveredAt:
+                        null
+
+                };
+
+            }
+
+
+            /*
+            ------------------------------------------
+            DELIVERY DATE REQUIRED
+            ------------------------------------------
+            */
+
+            if (
+                !deliveryDate
+            ) {
+
+                return {
+
+                    eligible:
+                        false,
+
+                    expired:
+                        false,
+
+                    daysRemaining:
+                        0,
+
+                    deadline:
+                        null,
+
+                    deliveredAt:
+                        null
+
+                };
+
+            }
+
+
+            const delivered =
+                new Date(
+                    deliveryDate
+                );
+
+
+            if (
+                Number.isNaN(
+                    delivered.getTime()
+                )
+            ) {
+
+                return {
+
+                    eligible:
+                        false,
+
+                    expired:
+                        false,
+
+                    daysRemaining:
+                        0,
+
+                    deadline:
+                        null,
+
+                    deliveredAt:
+                        null
+
+                };
+
+            }
+
+
+            /*
+            ------------------------------------------
+            DELIVERY DATE + 7 DAYS
+            ------------------------------------------
+            */
+
+            const deadline =
+                new Date(
+                    delivered
+                );
+
+
+            deadline.setDate(
+                deadline.getDate() +
+                RETURN_WINDOW_DAYS
+            );
+
+
+            const now =
+                new Date();
+
+
+            const remainingMilliseconds =
+                deadline.getTime() -
+                now.getTime();
+
+
+            const expired =
+                remainingMilliseconds <=
+                0;
+
+
+            const daysRemaining =
+                expired
+                    ? 0
+                    : Math.ceil(
+
+                        remainingMilliseconds /
+                        (
+                            1000 *
+                            60 *
+                            60 *
+                            24
+                        )
+
+                    );
+
+
+            return {
+
+                eligible:
+                    !expired,
+
+                expired,
+
+                daysRemaining,
+
+                deadline,
+
+                deliveredAt:
+                    delivered
+
+            };
+
+        }, [
+            order,
+            deliveryDate
+        ]);
+
+
+    /*
+    ==================================================
+    RETURN ALREADY REQUESTED
+    ==================================================
+    */
+
+    const returnAlreadyRequested =
+        Boolean(
+            returnRequest
+        );
+
+
+    /*
+    ==================================================
+    SUBMIT RETURN
+    ==================================================
+    */
+
+    async function submitReturnRequest() {
+
+        if (
+            !order?.referenceNo
+        ) {
+
+            return;
+
+        }
+
+
+        if (
+            !returnInfo.eligible
+        ) {
+
+            setReturnError(
+                "The 7-day return window has expired."
+            );
+
+            return;
+
+        }
+
+
+        const reason =
+            returnReason.trim();
+
+
+        if (!reason) {
+
+            setReturnError(
+                "Please enter the reason for return."
+            );
+
+            return;
+
+        }
+
+
+        if (
+            reason.length <
+            10
+        ) {
+
+            setReturnError(
+                "Please provide at least 10 characters describing the reason."
+            );
+
+            return;
+
+        }
+
+
+        try {
+
+            setSubmittingReturn(
+                true
+            );
+
+            setReturnError("");
+
+
+            const response =
+                await api.post(
+
+                    `/order-returns/${encodeURIComponent(
+                        order.referenceNo
+                    )}/return`,
+
+                    {
+                        reason
+                    }
+
+                );
+
+
+            if (
+                !response.data?.success
+            ) {
+
+                throw new Error(
+
+                    response.data?.message ||
+                    "Unable to submit return request."
+
+                );
+
+            }
+
+
+            /*
+            ------------------------------------------
+            UPDATE UI
+            ------------------------------------------
+            */
+
+            setOrder(
+                previous => ({
+
+                    ...previous,
+
+                    status:
+                        "RETURN_REQUESTED"
+
+                })
+            );
+
+
+            setReturnRequest({
+
+                id:
+                    response.data
+                        ?.returnRequest
+                        ?.id,
+
+                reference_no:
+                    order.referenceNo,
+
+                reason,
+
+                status:
+                    "RETURN_REQUESTED",
+
+                requested_at:
+                    new Date().toISOString()
+
+            });
+
+
+            setReturnReason("");
+
+            setShowReturnModal(
+                false
+            );
+
+
+        } catch (error) {
+
+            console.error(
+                "SUBMIT RETURN ERROR:",
+                error
+            );
+
+
+            if (
+                error.response?.status ===
+                401
+            ) {
+
+                navigate(
+                    `/login?redirect=/profile/orders/${referenceNo}`
+                );
+
+                return;
+
+            }
+
+
+            setReturnError(
+
+                error.response
+                    ?.data
+                    ?.message ||
+
+                error.message ||
+
+                "Unable to submit return request."
+
+            );
+
+        } finally {
+
+            setSubmittingReturn(
+                false
+            );
+
+        }
+
+    }
+
+
+    /*
+    ==================================================
     LOADING
-    =========================================
+    ==================================================
     */
 
     if (loading) {
@@ -432,12 +1180,15 @@ async function cancelOrder() {
 
 
     /*
-    =========================================
+    ==================================================
     ERROR
-    =========================================
+    ==================================================
     */
 
-    if (error) {
+    if (
+        error &&
+        !order
+    ) {
 
         return (
 
@@ -494,15 +1245,21 @@ async function cancelOrder() {
     }
 
 
+    /*
+    ==================================================
+    MAIN UI
+    ==================================================
+    */
+
     return (
 
         <div
             className="order-details-page"
         >
 
-            {/* =================================
+            {/* =========================================
                 HEADER
-            ================================= */}
+            ========================================= */}
 
             <header
                 className="order-details-header"
@@ -551,9 +1308,9 @@ async function cancelOrder() {
                 className="order-details-main"
             >
 
-                {/* =================================
+                {/* =========================================
                     TITLE
-                ================================= */}
+                ========================================= */}
 
                 <section
                     className="order-details-title"
@@ -572,7 +1329,8 @@ async function cancelOrder() {
                         <span>
                             Placed on{" "}
                             {formatDate(
-                                order.createdAt
+                                order.createdAt ||
+                                order.created_at
                             )}
                         </span>
 
@@ -581,27 +1339,57 @@ async function cancelOrder() {
 
                     <div
                         className={`order-status-badge status-${String(
-                            order.status || ""
-                        ).toLowerCase()}`
-                        }
+                            order.status ||
+                            ""
+                        ).toLowerCase()}`}
                     >
 
                         <StatusIcon />
 
-                        {
-                            getStatusLabel(
-                                order.status
-                            )
-                        }
+                        {getStatusLabel(
+                            order.status
+                        )}
 
                     </div>
 
                 </section>
 
 
-                {/* =================================
-                    STATUS
-                ================================= */}
+                {/* =========================================
+                    ERROR
+                ========================================= */}
+
+                {error && (
+
+                    <div
+                        className="order-inline-error"
+                    >
+
+                        <AlertTriangle
+                            size={17}
+                        />
+
+                        <span>
+                            {error}
+                        </span>
+
+                        <button
+                            type="button"
+                            onClick={() =>
+                                setError("")
+                            }
+                        >
+                            ×
+                        </button>
+
+                    </div>
+
+                )}
+
+
+                {/* =========================================
+                    STATUS TIMELINE
+                ========================================= */}
 
                 <section
                     className="order-details-card"
@@ -634,214 +1422,226 @@ async function cancelOrder() {
                         className="order-status-timeline"
                     >
 
-                        <div
-                            className={`timeline-step active`}
-                        >
-
-                            <div
-                                className="timeline-dot"
-                            >
+                        <TimelineStep
+                            label="Order Placed"
+                            active
+                            icon={
                                 <CheckCircle
                                     size={15}
                                 />
-                            </div>
-
-                            <span>
-                                Order Placed
-                            </span>
-
-                        </div>
-
-
-                        <div
-                            className={`timeline-line ${
-                                [
-                                    "ACCEPTED",
-                                    "PROCESSING",
-                                    "SHIPPED",
-                                    "DELIVERED"
-                                ].includes(
-                                    order.status
-                                )
-                                    ? "active"
-                                    : ""
-                            }`}
+                            }
                         />
 
 
-                        <div
-                            className={`timeline-step ${
-                                [
-                                    "ACCEPTED",
-                                    "PROCESSING",
-                                    "SHIPPED",
-                                    "DELIVERED"
-                                ].includes(
-                                    order.status
-                                )
-                                    ? "active"
-                                    : ""
-                            }`}
-                        >
-
-                            <div
-                                className="timeline-dot"
-                            >
-                                {[
-                                    "ACCEPTED",
-                                    "PROCESSING",
-                                    "SHIPPED",
-                                    "DELIVERED"
-                                ].includes(
-                                    order.status
-                                )
-                                    ? (
-                                        <CheckCircle
-                                            size={15}
-                                        />
-                                    )
-                                    : (
-                                        <Clock
-                                            size={15}
-                                        />
-                                    )
-                                }
-                            </div>
-
-                            <span>
-                                Seller Accepted
-                            </span>
-
-                        </div>
-
-
-                        <div
-                            className={`timeline-line ${
-                                [
-                                    "PROCESSING",
-                                    "SHIPPED",
-                                    "DELIVERED"
-                                ].includes(
-                                    order.status
-                                )
-                                    ? "active"
-                                    : ""
-                            }`}
+                        <TimelineLine
+                            active={[
+                                "ACCEPTED",
+                                "PROCESSING",
+                                "SHIPPED",
+                                "DELIVERED",
+                                "RETURN_REQUESTED",
+                                "RETURN_ACCEPTED",
+                                "RETURN_REJECTED"
+                            ].includes(
+                                order.status
+                            )}
                         />
 
 
-                        <div
-                            className={`timeline-step ${
-                                [
-                                    "PROCESSING",
-                                    "SHIPPED",
-                                    "DELIVERED"
-                                ].includes(
-                                    order.status
-                                )
-                                    ? "active"
-                                    : ""
-                            }`}
-                        >
+                        <TimelineStep
+                            label="Seller Accepted"
+                            active={[
+                                "ACCEPTED",
+                                "PROCESSING",
+                                "SHIPPED",
+                                "DELIVERED",
+                                "RETURN_REQUESTED",
+                                "RETURN_ACCEPTED",
+                                "RETURN_REJECTED"
+                            ].includes(
+                                order.status
+                            )}
+                            icon={
+                                <CheckCircle
+                                    size={15}
+                                />
+                            }
+                        />
 
-                            <div
-                                className="timeline-dot"
-                            >
+
+                        <TimelineLine
+                            active={[
+                                "PROCESSING",
+                                "SHIPPED",
+                                "DELIVERED",
+                                "RETURN_REQUESTED",
+                                "RETURN_ACCEPTED",
+                                "RETURN_REJECTED"
+                            ].includes(
+                                order.status
+                            )}
+                        />
+
+
+                        <TimelineStep
+                            label="Processing"
+                            active={[
+                                "PROCESSING",
+                                "SHIPPED",
+                                "DELIVERED",
+                                "RETURN_REQUESTED",
+                                "RETURN_ACCEPTED",
+                                "RETURN_REJECTED"
+                            ].includes(
+                                order.status
+                            )}
+                            icon={
                                 <Package
                                     size={15}
                                 />
-                            </div>
-
-                            <span>
-                                Processing
-                            </span>
-
-                        </div>
-
-
-                        <div
-                            className={`timeline-line ${
-                                [
-                                    "SHIPPED",
-                                    "DELIVERED"
-                                ].includes(
-                                    order.status
-                                )
-                                    ? "active"
-                                    : ""
-                            }`}
+                            }
                         />
 
 
-                        <div
-                            className={`timeline-step ${
-                                [
-                                    "SHIPPED",
-                                    "DELIVERED"
-                                ].includes(
-                                    order.status
-                                )
-                                    ? "active"
-                                    : ""
-                            }`}
-                        >
+                        <TimelineLine
+                            active={[
+                                "SHIPPED",
+                                "DELIVERED"
+                            ].includes(
+                                order.status
+                            )}
+                        />
 
-                            <div
-                                className="timeline-dot"
-                            >
+
+                        <TimelineStep
+                            label="Shipped"
+                            active={[
+                                "SHIPPED",
+                                "DELIVERED"
+                            ].includes(
+                                order.status
+                            )}
+                            icon={
                                 <Truck
                                     size={15}
                                 />
-                            </div>
-
-                            <span>
-                                Shipped
-                            </span>
-
-                        </div>
-
-
-                        <div
-                            className={`timeline-line ${
-                                order.status ===
-                                "DELIVERED"
-                                    ? "active"
-                                    : ""
-                            }`}
+                            }
                         />
 
 
-                        <div
-                            className={`timeline-step ${
-                                order.status ===
+                        <TimelineLine
+                            active={[
                                 "DELIVERED"
-                                    ? "active"
-                                    : ""
-                            }`}
-                        >
+                            ].includes(
+                                order.status
+                            )}
+                        />
 
-                            <div
-                                className="timeline-dot"
-                            >
+
+                        <TimelineStep
+                            label="Delivered"
+                            active={[
+                                "DELIVERED",
+                                "RETURN_REQUESTED",
+                                "RETURN_ACCEPTED",
+                                "RETURN_REJECTED"
+                            ].includes(
+                                order.status
+                            )}
+                            icon={
                                 <CheckCircle
                                     size={15}
                                 />
-                            </div>
-
-                            <span>
-                                Delivered
-                            </span>
-
-                        </div>
+                            }
+                        />
 
                     </div>
 
                 </section>
 
 
-                {/* =================================
+                {/* =========================================
+                    INVOICE
+                ========================================= */}
+
+                <section
+                    className="order-details-card invoice-card"
+                >
+
+                    <div
+                        className="invoice-card-left"
+                    >
+
+                        <div
+                            className="invoice-icon"
+                        >
+
+                            <FileText
+                                size={22}
+                            />
+
+                        </div>
+
+
+                        <div>
+
+                            <h2>
+                                Order Invoice
+                            </h2>
+
+
+                            {invoiceAvailable ? (
+
+                                <p>
+                                    Your invoice is ready.
+                                    You can view and save it as PDF.
+                                </p>
+
+                            ) : (
+
+                                <p>
+                                    Invoice will be available
+                                    after the order is shipped.
+                                </p>
+
+                            )}
+
+                        </div>
+
+                    </div>
+
+
+                    <button
+                        type="button"
+                        className={`invoice-download-button ${
+                            invoiceAvailable
+                                ? "available"
+                                : "disabled"
+                        }`}
+                        disabled={
+                            !invoiceAvailable
+                        }
+                        onClick={
+                            openInvoice
+                        }
+                    >
+
+                        <FileText
+                            size={17}
+                        />
+
+                        {invoiceAvailable
+                            ? "View Invoice"
+                            : "Available after Shipped"}
+
+                    </button>
+
+                </section>
+
+
+                {/* =========================================
                     PRODUCTS
-                ================================= */}
+                ========================================= */}
 
                 <section
                     className="order-details-card"
@@ -874,12 +1674,17 @@ async function cancelOrder() {
                         className="order-products-list"
                     >
 
-                        {order.items?.map(
+                        {Array.isArray(
+                            order.items
+                        ) &&
+                        order.items.map(
                             item => (
 
                                 <div
                                     className="order-product-row"
-                                    key={item.id}
+                                    key={
+                                        item.id
+                                    }
                                 >
 
                                     <div
@@ -901,19 +1706,24 @@ async function cancelOrder() {
 
                                             <strong>
                                                 {
-                                                    item.productName
+                                                    item.productName ||
+                                                    item.product_name ||
+                                                    "Product"
                                                 }
                                             </strong>
+
 
                                             <span>
 
                                                 {
                                                     Number(
-                                                        item.quantity
+                                                        item.quantity ||
+                                                        0
                                                     ).toLocaleString(
                                                         "en-IN",
                                                         {
-                                                            maximumFractionDigits: 3
+                                                            maximumFractionDigits:
+                                                                3
                                                         }
                                                     )
                                                 }
@@ -921,14 +1731,16 @@ async function cancelOrder() {
                                                 {" "}
 
                                                 {
-                                                    item.unit
+                                                    item.unit ||
+                                                    ""
                                                 }
 
                                                 {" × ₹"}
 
                                                 {
                                                     formatMoney(
-                                                        item.unitPrice
+                                                        item.unitPrice ||
+                                                        item.unit_price
                                                     )
                                                 }
 
@@ -938,11 +1750,9 @@ async function cancelOrder() {
                                             {item.sku && (
 
                                                 <small>
-
                                                     SKU:
                                                     {" "}
                                                     {item.sku}
-
                                                 </small>
 
                                             )}
@@ -975,9 +1785,9 @@ async function cancelOrder() {
                 </section>
 
 
-                {/* =================================
-                    TWO COLUMN INFORMATION
-                ================================= */}
+                {/* =========================================
+                    SELLER + DELIVERY
+                ========================================= */}
 
                 <div
                     className="order-info-grid"
@@ -1019,6 +1829,7 @@ async function cancelOrder() {
                             <strong>
                                 {
                                     order.seller?.name ||
+                                    order.seller?.full_name ||
                                     "Seller"
                                 }
                             </strong>
@@ -1097,26 +1908,30 @@ async function cancelOrder() {
 
                             <strong>
                                 {
-                                    order.delivery?.address
+                                    order.delivery?.address ||
+                                    "-"
                                 }
                             </strong>
 
                             <span>
                                 {
-                                    order.delivery?.city
+                                    order.delivery?.city ||
+                                    "-"
                                 }
                             </span>
 
                             <span>
                                 {
-                                    order.delivery?.state
+                                    order.delivery?.state ||
+                                    "-"
                                 }
                             </span>
 
                             <span>
                                 Pincode:{" "}
                                 {
-                                    order.delivery?.pincode
+                                    order.delivery?.pincode ||
+                                    "-"
                                 }
                             </span>
 
@@ -1127,9 +1942,9 @@ async function cancelOrder() {
                 </div>
 
 
-                {/* =================================
+                {/* =========================================
                     ORDER SUMMARY
-                ================================= */}
+                ========================================= */}
 
                 <section
                     className="order-details-card order-summary-card"
@@ -1192,19 +2007,57 @@ async function cancelOrder() {
 
                             <strong>
 
-                                {Number(
-                                    order.deliveryCharge
-                                ) === 0
+                                {
+                                    Number(
+                                        order.deliveryCharge ||
+                                        order.delivery_charge ||
+                                        0
+                                    ) === 0
 
-                                    ? "Free"
+                                        ? "Free"
 
-                                    : `₹${formatMoney(
-                                        order.deliveryCharge
-                                    )}`}
+                                        : `₹${formatMoney(
+                                            order.deliveryCharge ||
+                                            order.delivery_charge
+                                        )}`
+                                }
 
                             </strong>
 
                         </div>
+
+
+                        {/* GST */}
+
+                        {(Number(
+                            order.gst ||
+                            order.gstAmount ||
+                            order.gst_amount ||
+                            0
+                        ) > 0) && (
+
+                            <div
+                                className="summary-row"
+                            >
+
+                                <span>
+                                    GST
+                                </span>
+
+                                <strong>
+                                    ₹
+                                    {
+                                        formatMoney(
+                                            order.gst ||
+                                            order.gstAmount ||
+                                            order.gst_amount
+                                        )
+                                    }
+                                </strong>
+
+                            </div>
+
+                        )}
 
 
                         <div
@@ -1224,7 +2077,8 @@ async function cancelOrder() {
                                 ₹
                                 {
                                     formatMoney(
-                                        order.totalAmount
+                                        order.totalAmount ||
+                                        order.total_amount
                                     )
                                 }
                             </strong>
@@ -1235,23 +2089,291 @@ async function cancelOrder() {
 
                 </section>
 
-            {order &&
-                (
-                    order.status ===
-                        "PENDING_SELLER_ACCEPTANCE" ||
 
-                    order.status ===
-                        "ACCEPTED" ||
+                {/* =========================================
+                    RETURN
+                ========================================= */}
 
-                    order.status ===
-                        "PROCESSING"
+                <section
+                    className={`order-return-card ${
+                        returnAlreadyRequested
+                            ? "return-existing"
+                            : ""
+                    }`}
+                >
+
+                    <div
+                        className="return-card-main"
+                    >
+
+                        <div
+                            className="return-icon"
+                        >
+
+                            <RotateCcw
+                                size={22}
+                            />
+
+                        </div>
+
+
+                        <div
+                            className="return-card-content"
+                        >
+
+                            <span
+                                className="return-label"
+                            >
+                                RETURN POLICY
+                            </span>
+
+
+                            <h2>
+                                {returnAlreadyRequested
+                                    ? "Return Request"
+                                    : "Need to return this order?"}
+                            </h2>
+
+
+                            {returnAlreadyRequested ? (
+
+                                <>
+
+                                    <p>
+
+                                        Return status:
+
+                                        {" "}
+
+                                        <strong>
+                                            {
+                                                getStatusLabel(
+                                                    returnRequest.status
+                                                )
+                                            }
+                                        </strong>
+
+                                    </p>
+
+
+                                    {returnRequest.requested_at && (
+
+                                        <p>
+
+                                            Requested on:{" "}
+
+                                            <strong>
+                                                {
+                                                    formatDateTime(
+                                                        returnRequest.requested_at
+                                                    )
+                                                }
+                                            </strong>
+
+                                        </p>
+
+                                    )}
+
+
+                                    {returnRequest.reason && (
+
+                                        <div
+                                            className="return-reason-display"
+                                        >
+
+                                            <strong>
+                                                Your reason
+                                            </strong>
+
+                                            <span>
+                                                {
+                                                    returnRequest.reason
+                                                }
+                                            </span>
+
+                                        </div>
+
+                                    )}
+
+
+                                    {returnRequest.seller_response && (
+
+                                        <div
+                                            className="return-response-display"
+                                        >
+
+                                            <strong>
+                                                Seller response
+                                            </strong>
+
+                                            <span>
+                                                {
+                                                    returnRequest.seller_response
+                                                }
+                                            </span>
+
+                                        </div>
+
+                                    )}
+
+                                </>
+
+                            ) : (
+
+                                <>
+
+                                    {String(
+                                        order.status ||
+                                        ""
+                                    ).toUpperCase() ===
+                                    "DELIVERED" ? (
+
+                                        returnInfo.eligible ? (
+
+                                            <p>
+
+                                                You can request a return
+                                                within{" "}
+
+                                                <strong>
+                                                    {
+                                                        returnInfo.daysRemaining
+                                                    } day
+                                                    {
+                                                        returnInfo.daysRemaining !== 1
+                                                            ? "s"
+                                                            : ""
+                                                    }
+                                                </strong>
+                                                .
+
+                                                <br />
+
+                                                Delivered on:{" "}
+
+                                                <strong>
+                                                    {
+                                                        formatDate(
+                                                            returnInfo.deliveredAt
+                                                        )
+                                                    }
+                                                </strong>
+
+                                                <br />
+
+                                                Return deadline:{" "}
+
+                                                <strong>
+                                                    {
+                                                        formatDate(
+                                                            returnInfo.deadline
+                                                        )
+                                                    }
+                                                </strong>
+
+                                            </p>
+
+                                        ) : (
+
+                                            <p
+                                                className="return-expired-text"
+                                            >
+
+                                                The{" "}
+                                                {
+                                                    RETURN_WINDOW_DAYS
+                                                }-day return window
+                                                has expired.
+
+                                            </p>
+
+                                        )
+
+                                    ) : (
+
+                                        <p>
+
+                                            Return will become available
+                                            after the order is delivered.
+
+                                        </p>
+
+                                    )}
+
+                                </>
+
+                            )}
+
+                        </div>
+
+                    </div>
+
+
+                    {!returnAlreadyRequested &&
+
+                    String(
+                        order.status ||
+                        ""
+                    ).toUpperCase() ===
+                        "DELIVERED" &&
+
+                    returnInfo.eligible && (
+
+                        <button
+                            type="button"
+                            className="return-request-button"
+                            onClick={() => {
+
+                                setReturnError("");
+
+                                setReturnReason("");
+
+                                setShowReturnModal(
+                                    true
+                                );
+
+                            }}
+                        >
+
+                            <RotateCcw
+                                size={17}
+                            />
+
+                            Request Return
+
+                        </button>
+
+                    )}
+
+                </section>
+
+
+                {/* =========================================
+                    CANCEL
+                ========================================= */}
+
+                {[
+                    "PENDING_SELLER_ACCEPTANCE",
+                    "ACCEPTED",
+                    "PROCESSING"
+                ].includes(
+                    String(
+                        order.status ||
+                        ""
+                    ).toUpperCase()
                 ) && (
 
-                    <div className="order-cancel-section">
+                    <div
+                        className="order-cancel-section"
+                    >
 
-                        <div className="cancel-info">
+                        <div
+                            className="cancel-info"
+                        >
 
-                            <XCircle size={20} />
+                            <XCircle
+                                size={20}
+                            />
 
                             <div>
 
@@ -1273,12 +2395,18 @@ async function cancelOrder() {
                             type="button"
                             className="order-cancel-button"
                             onClick={() =>
-                                setShowCancelModal(true)
+                                setShowCancelModal(
+                                    true
+                                )
                             }
-                            disabled={cancellingOrder}
+                            disabled={
+                                cancellingOrder
+                            }
                         >
 
-                            <XCircle size={18} />
+                            <XCircle
+                                size={18}
+                            />
 
                             Cancel Order
 
@@ -1288,128 +2416,545 @@ async function cancelOrder() {
 
                 )}
 
-        </main>
+            </main>
 
 
-        {/* =====================================
-            CANCEL MODAL
-        ===================================== */}
+            {/* =====================================================
+                RETURN MODAL
+            ===================================================== */}
 
-        {showCancelModal && (
-
-            <div
-                className="cancel-modal-overlay"
-                onClick={() => {
-
-                    if (!cancellingOrder) {
-                        setShowCancelModal(false);
-                    }
-
-                }}
-            >
+            {showReturnModal && (
 
                 <div
-                    className="cancel-modal"
-                    onClick={(event) =>
-                        event.stopPropagation()
-                    }
+                    className="return-modal-overlay"
+                    onClick={() => {
+
+                        if (
+                            !submittingReturn
+                        ) {
+
+                            setShowReturnModal(
+                                false
+                            );
+
+                        }
+
+                    }}
                 >
 
-                    <div className="cancel-modal-icon">
+                    <div
+                        className="return-modal"
+                        onClick={
+                            event =>
+                                event.stopPropagation()
+                        }
+                    >
 
-                        <XCircle size={32} />
+                        <div
+                            className="return-modal-icon"
+                        >
 
-                    </div>
+                            <RotateCcw
+                                size={28}
+                            />
 
-
-                    <div className="cancel-modal-content">
-
-                        <span className="cancel-modal-label">
-                            ORDER CANCELLATION
-                        </span>
-
-                        <h2>
-                            Cancel this order?
-                        </h2>
-
-                        <p>
-                            Are you sure you want to cancel order{" "}
-
-                            <strong>
-                                {order.referenceNo}
-                            </strong>
-                            ?
-                        </p>
+                        </div>
 
 
-                        <div className="cancel-modal-warning">
-
-                            <AlertTriangle size={18} />
+                        <div
+                            className="return-modal-content"
+                        >
 
                             <span>
-                                The reserved inventory will
-                                be released automatically.
-                                This action cannot be undone.
+                                RETURN REQUEST
                             </span>
+
+
+                            <h2>
+                                Why do you want to return this order?
+                            </h2>
+
+
+                            <p>
+
+                                Order:{" "}
+
+                                <strong>
+                                    {
+                                        order.referenceNo
+                                    }
+                                </strong>
+
+                            </p>
+
+
+                            <label>
+
+                                Return reason
+
+
+                                <textarea
+                                    value={
+                                        returnReason
+                                    }
+                                    onChange={
+                                        event =>
+                                            setReturnReason(
+                                                event.target.value
+                                            )
+                                    }
+                                    placeholder="Please explain why you want to return this order..."
+                                    rows={5}
+                                    maxLength={1000}
+                                    disabled={
+                                        submittingReturn
+                                    }
+                                />
+
+                            </label>
+
+
+                            <div
+                                className="return-character-count"
+                            >
+
+                                {
+                                    returnReason.length
+                                }
+                                /1000
+
+                            </div>
+
+
+                            {returnError && (
+
+                                <div
+                                    className="return-modal-error"
+                                >
+
+                                    <AlertTriangle
+                                        size={16}
+                                    />
+
+                                    {
+                                        returnError
+                                    }
+
+                                </div>
+
+                            )}
+
+                        </div>
+
+
+                        <div
+                            className="return-modal-actions"
+                        >
+
+                            <button
+                                type="button"
+                                className="return-modal-cancel"
+                                disabled={
+                                    submittingReturn
+                                }
+                                onClick={() =>
+                                    setShowReturnModal(
+                                        false
+                                    )
+                                }
+                            >
+
+                                Keep Order
+
+                            </button>
+
+
+                            <button
+                                type="button"
+                                className="return-modal-submit"
+                                disabled={
+                                    submittingReturn
+                                }
+                                onClick={
+                                    submitReturnRequest
+                                }
+                            >
+
+                                {submittingReturn ? (
+
+                                    <>
+
+                                        <Loader2
+                                            size={16}
+                                            className="invoice-spin"
+                                        />
+
+                                        Submitting...
+
+                                    </>
+
+                                ) : (
+
+                                    <>
+
+                                        <RotateCcw
+                                            size={16}
+                                        />
+
+                                        Submit Return Request
+
+                                    </>
+
+                                )}
+
+                            </button>
 
                         </div>
 
                     </div>
 
+                </div>
 
-                    <div className="cancel-modal-actions">
+            )}
 
-                        <button
-                            type="button"
-                            className="cancel-modal-keep"
-                            disabled={cancellingOrder}
-                            onClick={() =>
-                                setShowCancelModal(false)
-                            }
+
+            {/* =====================================================
+                CANCEL MODAL
+            ===================================================== */}
+
+            {showCancelModal && (
+
+                <div
+                    className="cancel-modal-overlay"
+                    onClick={() => {
+
+                        if (
+                            !cancellingOrder
+                        ) {
+
+                            setShowCancelModal(
+                                false
+                            );
+
+                        }
+
+                    }}
+                >
+
+                    <div
+                        className="cancel-modal"
+                        onClick={
+                            event =>
+                                event.stopPropagation()
+                        }
+                    >
+
+                        <div
+                            className="cancel-modal-icon"
                         >
-                            Keep Order
-                        </button>
+
+                            <XCircle
+                                size={32}
+                            />
+
+                        </div>
 
 
-                        <button
-                            type="button"
-                            className="cancel-modal-confirm"
-                            disabled={cancellingOrder}
-                            onClick={cancelOrder}
+                        <div
+                            className="cancel-modal-content"
                         >
 
-                            {cancellingOrder
-                                ? (
+                            <span
+                                className="cancel-modal-label"
+                            >
+                                ORDER CANCELLATION
+                            </span>
+
+
+                            <h2>
+                                Cancel this order?
+                            </h2>
+
+
+                            <p>
+
+                                Are you sure you want
+                                to cancel order{" "}
+
+                                <strong>
+                                    {
+                                        order.referenceNo
+                                    }
+                                </strong>
+
+                                ?
+
+                            </p>
+
+
+                            <div
+                                className="cancel-modal-warning"
+                            >
+
+                                <AlertTriangle
+                                    size={18}
+                                />
+
+                                <span>
+
+                                    The reserved inventory
+                                    will be released automatically.
+                                    This action cannot be undone.
+
+                                </span>
+
+                            </div>
+
+                        </div>
+
+
+                        <div
+                            className="cancel-modal-actions"
+                        >
+
+                            <button
+                                type="button"
+                                className="cancel-modal-keep"
+                                disabled={
+                                    cancellingOrder
+                                }
+                                onClick={() =>
+                                    setShowCancelModal(
+                                        false
+                                    )
+                                }
+                            >
+
+                                Keep Order
+
+                            </button>
+
+
+                            <button
+                                type="button"
+                                className="cancel-modal-confirm"
+                                disabled={
+                                    cancellingOrder
+                                }
+                                onClick={
+                                    cancelOrder
+                                }
+                            >
+
+                                {cancellingOrder ? (
+
                                     <>
+
                                         <span
                                             className="cancel-spinner"
                                         />
 
                                         Cancelling...
+
                                     </>
-                                )
-                                : (
+
+                                ) : (
+
                                     <>
-                                        <XCircle size={17} />
+
+                                        <XCircle
+                                            size={17}
+                                        />
 
                                         Yes, Cancel Order
-                                    </>
-                                )
-                            }
 
-                        </button>
+                                    </>
+
+                                )}
+
+                            </button>
+
+                        </div>
 
                     </div>
 
                 </div>
 
+            )}
+{/* =====================================================
+    INVOICE MODAL
+===================================================== */}
+
+{showInvoice && (
+
+    <div
+        className="invoice-modal-overlay"
+        onClick={() =>
+            setShowInvoice(false)
+        }
+    >
+
+        <div
+            className="invoice-modal"
+            onClick={(event) =>
+                event.stopPropagation()
+            }
+        >
+
+            {/* =========================================
+                TOOLBAR
+            ========================================= */}
+
+            <div
+                className="invoice-modal-toolbar"
+            >
+
+                <div
+                    className="invoice-toolbar-title"
+                >
+
+                    <strong>
+                        Invoice
+                    </strong>
+
+                    <span>
+                        {order.referenceNo}
+                    </span>
+
+                </div>
+
+
+                <div
+                    className="invoice-toolbar-actions"
+                >
+
+                    <button
+                        type="button"
+                        className="invoice-print-button"
+                        onClick={
+                            printInvoice
+                        }
+                    >
+
+                        <Printer
+                            size={16}
+                        />
+
+                        Print / Save PDF
+
+                    </button>
+
+
+                    <button
+                        type="button"
+                        className="invoice-close-button"
+                        onClick={() =>
+                            setShowInvoice(false)
+                        }
+                        aria-label="Close invoice"
+                    >
+
+                        <XCircle
+                            size={18}
+                        />
+
+                    </button>
+
+                </div>
+
             </div>
 
-        )}
+
+            {/* =========================================
+                INVOICE CONTENT
+            ========================================= */}
+
+            <div
+                className="invoice-print-area"
+            >
+
+                <Invoice
+                    order={order}
+                />
+
+            </div>
+
+        </div>
 
     </div>
 
-);
+)}
+        </div>
+
+    );
+
+}
+
+
+/*
+==================================================
+TIMELINE STEP
+==================================================
+*/
+
+function TimelineStep({
+    label,
+    active,
+    icon
+}) {
+
+    return (
+
+        <div
+            className={`timeline-step ${
+                active
+                    ? "active"
+                    : ""
+            }`}
+        >
+
+            <div
+                className="timeline-dot"
+            >
+
+                {icon}
+
+            </div>
+
+
+            <span>
+                {label}
+            </span>
+
+        </div>
+
+    );
+
+}
+
+
+/*
+==================================================
+TIMELINE LINE
+==================================================
+*/
+
+function TimelineLine({
+    active
+}) {
+
+    return (
+
+        <div
+            className={`timeline-line ${
+                active
+                    ? "active"
+                    : ""
+            }`}
+        />
+
+    );
+
 }
 
 

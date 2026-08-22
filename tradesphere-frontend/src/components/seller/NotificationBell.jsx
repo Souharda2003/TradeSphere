@@ -139,28 +139,6 @@ function NotificationBell({onOpenOrder}) {
     useEffect(() => {
 
         loadNotificationData();
-
-
-        const interval =
-            setInterval(
-
-                () => {
-
-                    loadNotificationData();
-
-                },
-
-                15000
-
-            );
-
-
-        return () => {
-
-            clearInterval(interval);
-
-        };
-
     }, []);
 
 

@@ -33,9 +33,17 @@ const otpRoutes =
     
 const orderRoutes =
     require("./routes/orderRoutes");
- const sellerOrderRoutes =
+    const invoiceRoutes =
+    require("./routes/invoiceRoutes");
+    const orderReturnRoutes =
+    require(
+        "./routes/orderReturnRoutes"
+    );
+
+
+    const sellerOrderRoutes =
     require("./routes/sellerOrderRoutes");   
-const notificationRoutes =
+    const notificationRoutes =
         require("./routes/notificationRoutes");
 const app =
     express();
@@ -130,6 +138,14 @@ app.use(
 app.use(
     "/api/orders",
     orderRoutes
+);
+app.use(
+    "/api/orders",
+    invoiceRoutes
+);
+app.use(
+    "/api/order-returns",
+    orderReturnRoutes
 );
 app.use(
     "/api/orders/seller",

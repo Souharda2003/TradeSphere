@@ -542,36 +542,6 @@ function CustomerDashboard() {
 
                     });
 
-
-                    /*
-                    ==========================================
-                    DEBUG
-                    ==========================================
-                    */
-
-                    console.log(
-                        "CUSTOMER DASHBOARD LOADED:",
-                        {
-                            user: currentUser,
-                            orders,
-                            totalOrders,
-                            pendingOrders,
-                            acceptedOrders,
-                            cancelledOrders,
-                            cartItems
-                        }
-                    );
-
-
-                    /*
-                    ==========================================
-                    IMPORTANT:
-
-                    If orders request failed, do not pretend
-                    that customer has zero orders.
-                    ==========================================
-                    */
-
                     if (
                         orderResult.status ===
                         "rejected"
