@@ -4,6 +4,11 @@ import {
     Route
 } from "react-router-dom";
 
+
+// ==========================================
+// PUBLIC PAGES
+// ==========================================
+
 import Home
     from "./pages/Home";
 
@@ -16,10 +21,17 @@ import Register
 import ChooseAccount
     from "./pages/auth/ChooseAccount";
 
+
+// ==========================================
+// CUSTOMER PAGES
+// ==========================================
+
 import CustomerDashboard
     from "./pages/customer/CustomerDashboard";
+
 import CustomerProducts
     from "./pages/customer/CustomerProducts";
+
 import ProductDetails
     from "./pages/customer/ProductDetails";
 
@@ -31,22 +43,32 @@ import Checkout
 
 import OrderSuccess
     from "./pages/customer/OrderSuccess";
+
 import Profile
     from "./pages/customer/Profile";
+
 import MyOrders
     from "./pages/customer/MyOrders";
-import OrderDetails from "./pages/customer/OrderDetails";
+
+import OrderDetails
+    from "./pages/customer/OrderDetails";
+
+
+// ==========================================
+// SELLER PAGES
+// ==========================================
+
 import SellerDashboard
     from "./pages/seller/SellerDashboard";
 
 import AddProduct
     from "./pages/seller/AddProduct";
 
-import SellerProducts
-    from "./pages/seller/SellerProducts";
+import SellerOrders
+    from "./pages/seller/SellerOrders";
 
-import ManageProduct
-    from "./pages/seller/ManageProduct";
+import ManageProducts
+    from "./pages/seller/ManageProducts";
 
 
 function App() {
@@ -57,12 +79,18 @@ function App() {
 
             <Routes>
 
+
+                {/* =================================
+                    PUBLIC
+                ================================= */}
+
                 <Route
                     path="/"
                     element={
                         <Home />
                     }
                 />
+
 
                 <Route
                     path="/login"
@@ -88,6 +116,11 @@ function App() {
                 />
 
 
+
+                {/* =================================
+                    CUSTOMER
+                ================================= */}
+
                 <Route
                     path="/customer"
                     element={
@@ -102,18 +135,30 @@ function App() {
                         <CustomerDashboard />
                     }
                 />
-                <Route 
-                path= "/products"
-                element={
-                    <CustomerProducts />
-                }
-                />
+
+
+                {/* CUSTOMER PRODUCTS */}
+
                 <Route
-    path="/products/:id"
-    element={
-        <ProductDetails />
-    }
-/>
+                    path="/products"
+                    element={
+                        <CustomerProducts />
+                    }
+                />
+
+
+                {/* PRODUCT DETAILS */}
+
+                <Route
+                    path="/products/:id"
+                    element={
+                        <ProductDetails />
+                    }
+                />
+
+
+                {/* CART */}
+
                 <Route
                     path="/cart"
                     element={
@@ -122,7 +167,7 @@ function App() {
                 />
 
 
-                {/* CUSTOMER CHECKOUT */}
+                {/* CHECKOUT */}
 
                 <Route
                     path="/checkout"
@@ -140,12 +185,17 @@ function App() {
                         <OrderSuccess />
                     }
                 />
+
+
+                {/* PROFILE */}
+
                 <Route
-    path="/profile"
-    element={
-        <Profile />
-    }
-/>
+                    path="/profile"
+                    element={
+                        <Profile />
+                    }
+                />
+
 
                 {/* CUSTOMER ORDERS */}
 
@@ -156,16 +206,40 @@ function App() {
                     }
                 />
 
-                    <Route
-    path="/profile/orders/:referenceNo"
-    element={<OrderDetails />}
-/>
+
+                {/* CUSTOMER ORDER DETAILS */}
+
+                <Route
+                    path="/profile/orders/:referenceNo"
+                    element={
+                        <OrderDetails />
+                    }
+                />
+
+
+
                 {/* =================================
                     SELLER
                 ================================= */}
 
+
+                {/* SELLER DASHBOARD */}
+
                 <Route
                     path="/seller"
+                    element={
+                        <SellerDashboard />
+                    }
+                />
+
+
+                {/* SELLER DASHBOARD - OPTIONAL
+                    If you want /seller/dashboard
+                    to also work
+                */}
+
+                <Route
+                    path="/seller/dashboard"
                     element={
                         <SellerDashboard />
                     }
@@ -182,22 +256,22 @@ function App() {
                 />
 
 
-                {/* SELLER PRODUCTS */}
+                {/* SELLER ORDERS */}
 
                 <Route
-                    path="/seller/products"
+                    path="/seller/orders"
                     element={
-                        <SellerProducts />
+                        <SellerOrders />
                     }
                 />
 
 
-                {/* MANAGE PRODUCT */}
+                {/* MANAGE PRODUCTS */}
 
                 <Route
-                    path="/seller/products/:id"
+                    path="/seller/products"
                     element={
-                        <ManageProduct />
+                        <ManageProducts />
                     }
                 />
 
@@ -209,6 +283,4 @@ function App() {
     );
 
 }
-
-
 export default App;

@@ -2,13 +2,6 @@ const {
     pool
 } = require("../config/db");
 
-
-/*
-=========================================
-CREATE PRODUCT
-=========================================
-*/
-
 async function createProduct(
     req,
     res
@@ -395,13 +388,6 @@ async function createProduct(
     }
 }
 
-
-/*
-=========================================
-GET SELLER PRODUCTS
-=========================================
-*/
-
 async function getSellerProducts(
     req,
     res
@@ -503,13 +489,6 @@ async function getSellerProducts(
     }
 }
 
-
-/*
-==================================================
-SELLER - GET OWN PRODUCT
-==================================================
-*/
-
 async function getSellerProduct(
     req,
     res
@@ -518,13 +497,30 @@ async function getSellerProduct(
     try {
 
         const sellerId =
-            req.user.userId;
+            req.user?.userId ||
+            req.user?.id ||
+            req.user?.user_id;
 
 
         const productId =
-            Number(
-                req.params.id
-            );
+            Number(req.params.id);
+
+
+        if (
+            !productId ||
+            Number.isNaN(productId)
+        ) {
+
+            return res.status(400).json({
+
+                success: false,
+
+                message:
+                    "Invalid product ID."
+
+            });
+
+        }
 
 
         const [
@@ -538,7 +534,13 @@ async function getSellerProduct(
 
                 p.product_name,
 
+                p.category,
+
+                p.description,
+
                 p.sku,
+
+                p.origin_country,
 
                 p.unit,
 
@@ -550,16 +552,17 @@ async function getSellerProduct(
 
                 p.seller_id,
 
-                i.available_quantity,
+                i.quantity,
 
-                i.reserved_quantity
+                i.reserved_quantity,
+
+                i.available_quantity
 
             FROM products p
 
             LEFT JOIN inventory i
-
-                ON i.product_id =
-                    p.id
+                ON i.product_id = p.id
+                AND i.seller_id = p.seller_id
 
             WHERE p.id = ?
 
@@ -593,7 +596,7 @@ async function getSellerProduct(
         }
 
 
-        return res.json({
+        return res.status(200).json({
 
             success: true,
 
@@ -624,13 +627,6 @@ async function getSellerProduct(
 
 }
 
-
-/*
-==================================================
-SELLER - UPDATE PRODUCT
-==================================================
-*/
-
 async function updateSellerProduct(
     req,
     res
@@ -654,21 +650,27 @@ async function updateSellerProduct(
 
         const {
 
-            product_name,
+    product_name,
 
-            sku,
+    category,
 
-            unit,
+    description,
 
-            price,
+    sku,
 
-            minimum_order_quantity,
+    origin_country,
 
-            status,
+    unit,
 
-            available_quantity
+    price,
 
-        } = req.body;
+    minimum_order_quantity,
+
+    status,
+
+    available_quantity
+
+} = req.body;
 
 
         if (
@@ -691,12 +693,6 @@ async function updateSellerProduct(
 
         await connection.beginTransaction();
 
-
-        /*
-        ==========================================
-        VERIFY OWNERSHIP
-        ==========================================
-        */
 
         const [
             products
@@ -732,95 +728,171 @@ async function updateSellerProduct(
             );
 
         }
+        const finalStatus =
+    Number(available_quantity) <= 0
 
+        ? "OUT_OF_STOCK"
 
-        /*
-        ==========================================
-        UPDATE PRODUCT
-        ==========================================
-        */
+        : status === "INACTIVE"
 
-        await connection.execute(
+            ? "INACTIVE"
 
-            `
-            UPDATE products
-
-            SET
-
-                product_name = ?,
-
-                sku = ?,
-
-                unit = ?,
-
-                price = ?,
-
-                minimum_order_quantity = ?,
-
-                status = ?
-
-            WHERE id = ?
-
-            AND seller_id = ?
-
-            `,
-
-            [
-
-                product_name,
-
-                sku,
-
-                unit,
-
-                Number(price),
-
-                Number(
-                    minimum_order_quantity
-                ),
-
-                status,
-
-                productId,
-
-                sellerId
-
-            ]
-
-        );
-
-
-        /*
-        ==========================================
-        UPDATE INVENTORY
-        ==========================================
-        */
+            : "ACTIVE";
 
         await connection.execute(
 
-            `
-            UPDATE inventory
+    `
+    UPDATE products
 
-            SET
+    SET
 
-                available_quantity = ?
+        product_name = ?,
 
-            WHERE product_id = ?
+        category = ?,
 
-            `,
+        description = ?,
 
-            [
+        sku = ?,
 
-                Number(
-                    available_quantity
-                ),
+        origin_country = ?,
 
-                productId
+        unit = ?,
 
-            ]
+        price = ?,
 
-        );
+        minimum_order_quantity = ?,
 
+        status = ?
+
+    WHERE id = ?
+
+    AND seller_id = ?
+
+    `,
+
+    [
+
+        product_name,
+
+        category,
+
+        description || null,
+
+        sku,
+
+        origin_country || "India",
+
+        unit,
+
+        Number(price),
+
+        Number(
+            minimum_order_quantity
+        ),
+
+        finalStatus,
+
+        productId,
+
+        sellerId
+
+    ]
+
+);
+
+const [
+    inventoryRows
+] = await connection.execute(
+
+    `
+    SELECT
+        quantity,
+        reserved_quantity
+
+    FROM inventory
+
+    WHERE product_id = ?
+
+    AND seller_id = ?
+
+    FOR UPDATE
+
+    `,
+
+    [
+        productId,
+        sellerId
+    ]
+
+);
+
+
+if (
+    inventoryRows.length === 0
+) {
+
+    throw new Error(
+        "Inventory not found."
+    );
+
+}
+
+
+const currentInventory =
+    inventoryRows[0];
+
+
+const reservedQuantity =
+    Number(
+        currentInventory.reserved_quantity || 0
+    );
+
+
+const newAvailableQuantity =
+    Number(
+        available_quantity
+    );
+
+
+if (
+    newAvailableQuantity < 0
+) {
+
+    throw new Error(
+        "Available stock cannot be negative."
+    );
+
+}
+
+const newTotalQuantity =
+    newAvailableQuantity +
+    reservedQuantity;
+
+
+await connection.execute(
+
+    `
+    UPDATE inventory
+
+    SET quantity = ?
+
+    WHERE product_id = ?
+
+    AND seller_id = ?
+
+    `,
+
+    [
+
+        newTotalQuantity,
+
+        productId,
+
+        sellerId
+
+    ]
+
+);
 
         await connection.commit();
 
@@ -934,13 +1006,6 @@ async function updateStock(
 
         await connection.beginTransaction();
 
-
-        /*
-        =================================
-        LOCK INVENTORY ROW
-        =================================
-        */
-
         const [
             inventoryRows
         ] = await connection.execute(
@@ -1000,12 +1065,6 @@ async function updateStock(
             );
 
 
-        /*
-        =================================
-        ADD STOCK
-        =================================
-        */
-
         if (
             operation === "ADD"
         ) {
@@ -1014,11 +1073,6 @@ async function updateStock(
         }
 
 
-        /*
-        =================================
-        REMOVE STOCK
-        =================================
-        */
 
         if (
             operation === "REMOVE"
@@ -1052,13 +1106,6 @@ async function updateStock(
 
             newQuantity -= amount;
         }
-
-
-        /*
-        =================================
-        UPDATE
-        =================================
-        */
 
         await connection.execute(
 
@@ -1164,12 +1211,6 @@ async function updateStock(
         connection.release();
     }
 }
-/*
-=========================================
-GET PUBLIC PRODUCTS
-CUSTOMER CATALOGUE
-=========================================
-*/
 
 async function getPublicProducts(req, res) {
 
@@ -1345,11 +1386,6 @@ async function getPublicProducts(req, res) {
 
     }
 }
-/*
-=========================================
-GET PUBLIC PRODUCT DETAILS
-=========================================
-*/
 
 async function getPublicProduct(
     req,
@@ -1514,7 +1550,274 @@ async function getPublicProduct(
 
         });
     }
-}module.exports = {
+}
+
+async function deleteSellerProduct(
+    req,
+    res
+) {
+
+    const connection =
+        await pool.getConnection();
+
+
+    try {
+
+        const sellerId =
+            req.user?.userId ||
+            req.user?.id ||
+            req.user?.user_id;
+
+
+        const productId =
+            Number(
+                req.params.id
+            );
+
+
+        if (!sellerId) {
+
+            return res.status(401).json({
+
+                success: false,
+
+                message:
+                    "Seller authentication information not found."
+
+            });
+
+        }
+
+
+        if (
+            !productId ||
+            Number.isNaN(productId)
+        ) {
+
+            return res.status(400).json({
+
+                success: false,
+
+                message:
+                    "Invalid product ID."
+
+            });
+
+        }
+
+
+        await connection.beginTransaction();
+
+        const [
+            products
+        ] = await connection.execute(
+
+            `
+            SELECT
+
+                p.id,
+
+                p.product_name,
+
+                p.status,
+
+                i.quantity,
+
+                i.reserved_quantity
+
+            FROM products p
+
+            LEFT JOIN inventory i
+                ON i.product_id = p.id
+
+            WHERE p.id = ?
+
+            AND p.seller_id = ?
+
+            LIMIT 1
+
+            `,
+
+            [
+                productId,
+                sellerId
+            ]
+
+        );
+
+
+        if (
+            products.length === 0
+        ) {
+
+            await connection.rollback();
+
+            return res.status(404).json({
+
+                success: false,
+
+                message:
+                    "Product not found."
+
+            });
+
+        }
+
+
+        const product =
+            products[0];
+
+        const reservedQuantity =
+            Number(
+                product.reserved_quantity || 0
+            );
+
+
+        if (
+            reservedQuantity > 0
+        ) {
+
+            await connection.rollback();
+
+            return res.status(400).json({
+
+                success: false,
+
+                message:
+                    "This product cannot be deleted because some quantity is reserved for customer orders.",
+
+                reservedQuantity
+
+            });
+
+        }
+
+
+        await connection.execute(
+
+            `
+            DELETE FROM product_images
+
+            WHERE product_id = ?
+
+            `,
+
+            [
+                productId
+            ]
+
+        );
+
+        await connection.execute(
+
+            `
+            DELETE FROM inventory
+
+            WHERE product_id = ?
+
+            AND seller_id = ?
+
+            `,
+
+            [
+                productId,
+                sellerId
+            ]
+
+        );
+
+        const [
+            result
+        ] = await connection.execute(
+
+            `
+            DELETE FROM products
+
+            WHERE id = ?
+
+            AND seller_id = ?
+
+            `,
+
+            [
+                productId,
+                sellerId
+            ]
+
+        );
+
+
+        if (
+            result.affectedRows === 0
+        ) {
+
+            throw new Error(
+                "Unable to delete product."
+            );
+
+        }
+
+
+        await connection.commit();
+
+
+        return res.status(200).json({
+
+            success: true,
+
+            message:
+                "Product deleted successfully.",
+
+            productId
+
+        });
+
+
+    } catch (error) {
+
+        await connection.rollback();
+
+
+        console.error(
+            "DELETE SELLER PRODUCT ERROR:",
+            error
+        );
+
+        if (
+            error.code ===
+            "ER_ROW_IS_REFERENCED_2"
+        ) {
+
+            return res.status(400).json({
+
+                success: false,
+
+                message:
+                    "This product cannot be deleted because it is already used in existing orders."
+
+            });
+
+        }
+
+
+        return res.status(500).json({
+
+            success: false,
+
+            message:
+                "Unable to delete product."
+
+        });
+
+
+    } finally {
+
+        connection.release();
+
+    }
+
+}
+module.exports = {
 
     createProduct,
 
@@ -1527,6 +1830,7 @@ async function getPublicProduct(
 
     getPublicProducts,
 
-    getPublicProduct
+    getPublicProduct,
+    deleteSellerProduct
 
 };

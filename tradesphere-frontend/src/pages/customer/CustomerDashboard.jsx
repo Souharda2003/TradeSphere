@@ -1,4 +1,5 @@
 import {
+    useCallback,
     useEffect,
     useState
 } from "react";
@@ -21,6 +22,7 @@ import {
 } from "react-router-dom";
 
 import api from "../../services/api";
+
 import LogoutButton
     from "../../components/LogoutButton";
 
@@ -32,521 +34,773 @@ function CustomerDashboard() {
     const navigate =
         useNavigate();
 
+
+    /*
+    ==================================================
+    USER
+    ==================================================
+    */
+
     const [user, setUser] =
         useState(null);
 
 
+    /*
+    ==================================================
+    DASHBOARD STATS
+    ==================================================
+    */
+
     const [stats, setStats] =
         useState({
-
             totalOrders: 0,
-
             pendingOrders: 0,
-
             acceptedOrders: 0,
-
             cancelledOrders: 0,
-
             cartItems: 0
-
         });
 
+
+    /*
+    ==================================================
+    LOADING
+    ==================================================
+    */
 
     const [loading, setLoading] =
         useState(true);
 
 
+    /*
+    ==================================================
+    ERROR
+    ==================================================
+    */
+
     const [error, setError] =
         useState("");
 
-const [showNotifications, setShowNotifications] =
-    useState(false);
 
-const [notifications, setNotifications] =
-    useState([]);
+    /*
+    ==================================================
+    NOTIFICATIONS
+    ==================================================
+    */
 
-const [notificationsRead, setNotificationsRead] =
-    useState(false);
-    useEffect(() => {
-
-        loadDashboard();
-
-    }, []);
+    const [
+        showNotifications,
+        setShowNotifications
+    ] = useState(false);
 
 
-    async function loadDashboard() {
-
-        try {
-
-            setLoading(true);
-
-            setError("");
+    const [
+        notifications,
+        setNotifications
+    ] = useState([]);
 
 
-            const userResponse =
-                await api.get(
-                    "/user/me"
-                );
+    /*
+    ==================================================
+    RETRY HELPER
+    ==================================================
+    */
+
+    async function requestWithRetry(
+        requestFunction,
+        retries = 2,
+        delay = 700
+    ) {
+
+        let lastError = null;
 
 
-            setUser(
-                userResponse.data.user
-            );
-            let orders = [];
-
-try {
-
-    const orderResponse =
-        await api.get("/orders/my");
-
-    orders =
-        Array.isArray(
-            orderResponse.data?.orders
-        )
-            ? orderResponse.data.orders
-            : [];
-
-    
-
-} catch (orderError) {
-
-    console.error(
-        "GET MY ORDERS ERROR:",
-        orderError.response?.data ||
-        orderError.message ||
-        orderError
-    );
-
-    orders = [];
-
-    
-
-}
-try {
-
-    const notificationResponse =
-        await api.get("/notifications");
-
-    setNotifications(
-        Array.isArray(
-            notificationResponse.data?.notifications
-        )
-            ? notificationResponse.data.notifications
-            : []
-    );
-
-} catch (notificationError) {
-
-    console.error(
-        "GET NOTIFICATIONS ERROR:",
-        notificationError.response?.data ||
-        notificationError.message ||
-        notificationError
-    );
-
-    setNotifications([]);
-
-}
-            let cartItems = 0;
-
+        for (
+            let attempt = 0;
+            attempt <= retries;
+            attempt++
+        ) {
 
             try {
 
-                const cartResponse =
-                    await api.get(
-                        "/cart"
+                return await requestFunction();
+
+            } catch (requestError) {
+
+                lastError =
+                    requestError;
+
+
+                /*
+                ------------------------------------------
+                DO NOT RETRY 401
+                ------------------------------------------
+                */
+
+                if (
+                    requestError.response?.status ===
+                    401
+                ) {
+
+                    throw requestError;
+
+                }
+
+
+                /*
+                ------------------------------------------
+                WAIT BEFORE RETRY
+                ------------------------------------------
+                */
+
+                if (
+                    attempt < retries
+                ) {
+
+                    await new Promise(
+                        resolve =>
+                            setTimeout(
+                                resolve,
+                                delay
+                            )
+                    );
+
+                }
+
+            }
+
+        }
+
+
+        throw lastError;
+
+    }
+
+
+    /*
+    ==================================================
+    LOAD DASHBOARD
+    ==================================================
+    */
+
+    const loadDashboard =
+        useCallback(
+            async () => {
+
+                try {
+
+                    setLoading(true);
+
+                    setError("");
+
+
+                    /*
+                    ==========================================
+                    FIRST GET CURRENT USER
+                    ==========================================
+                    */
+
+                    const userResponse =
+                        await requestWithRetry(
+                            () =>
+                                api.get(
+                                    "/user/me"
+                                )
+                        );
+
+
+                    const currentUser =
+                        userResponse.data?.user;
+
+
+                    setUser(
+                        currentUser || null
                     );
 
 
-                cartItems =
-                    cartResponse.data.items
-                        ?.length || 0;
+                    /*
+                    ==========================================
+                    LOAD ALL CUSTOMER DATA IN PARALLEL
+                    ==========================================
+                    */
 
-            } catch (
-                cartError
-            ) {
+                    const [
+                        orderResult,
+                        cartResult,
+                        notificationResult
+                    ] = await Promise.allSettled([
 
-                console.warn(
-                    "Cart API unavailable:",
-                    cartError
-                );
+                        requestWithRetry(
+                            () =>
+                                api.get(
+                                    "/orders/my"
+                                )
+                        ),
 
-            }
+                        requestWithRetry(
+                            () =>
+                                api.get(
+                                    "/cart"
+                                )
+                        ),
 
-            const totalOrders =
-                orders.length;
-
-
-            const pendingOrders =
-                orders.filter(
-
-                    order =>
-
-                        order.status ===
-                        "PENDING_SELLER_ACCEPTANCE"
-
-                ).length;
-
-
-            const acceptedOrders =
-                orders.filter(
-
-                    order =>
-
-                        [
-                            "ACCEPTED",
-                            "PROCESSING",
-                            "SHIPPED",
-                            "DELIVERED"
-
-                        ].includes(
-                            order.status
+                        requestWithRetry(
+                            () =>
+                                api.get(
+                                    "/notifications"
+                                )
                         )
 
-                ).length;
+                    ]);
 
 
-            const cancelledOrders =
-                orders.filter(
+                    /*
+                    ==========================================
+                    CHECK 401 FROM ANY API
+                    ==========================================
+                    */
 
-                    order =>
-
-                        [
-                            "CANCELLED",
-                            "REJECTED"
-
-                        ].includes(
-                            order.status
-                        )
-
-                ).length;
+                    const results = [
+                        orderResult,
+                        cartResult,
+                        notificationResult
+                    ];
 
 
-            setStats({
-
-                totalOrders,
-
-                pendingOrders,
-
-                acceptedOrders,
-
-                cancelledOrders,
-
-                cartItems
-
-            });
+                    const unauthorized =
+                        results.some(
+                            result =>
+                                result.status ===
+                                    "rejected" &&
+                                result.reason
+                                    ?.response
+                                    ?.status === 401
+                        );
 
 
-        } catch (error) {
+                    if (
+                        unauthorized
+                    ) {
 
-            console.error(
-                "CUSTOMER DASHBOARD ERROR:",
-                error
-            );
+                        navigate(
+                            "/login",
+                            {
+                                replace: true
+                            }
+                        );
 
+                        return;
 
-            if (
-                error.response?.status ===
-                401
-            ) {
-
-                navigate(
-                    "/login"
-                );
-
-                return;
-            }
+                    }
 
 
-            setError(
+                    /*
+                    ==========================================
+                    ORDERS
+                    ==========================================
+                    */
 
-                error.response
-                    ?.data
-                    ?.message ||
-
-                "Unable to load dashboard."
-
-            );
+                    let orders = [];
 
 
-        } finally {
+                    if (
+                        orderResult.status ===
+                        "fulfilled"
+                    ) {
 
-            setLoading(false);
-        }
+                        orders =
+                            Array.isArray(
+                                orderResult
+                                    .value
+                                    ?.data
+                                    ?.orders
+                            )
+                                ? orderResult
+                                    .value
+                                    .data
+                                    .orders
+                                : [];
 
-    }
-const handleMarkAllRead = async () => {
+                    } else {
 
-    try {
+                        console.error(
+                            "GET MY ORDERS ERROR:",
+                            orderResult.reason
+                                ?.response
+                                ?.data ||
+                            orderResult.reason
+                                ?.message ||
+                            orderResult.reason
+                        );
 
-        await api.put(
-            "/notifications/read-all"
+                    }
+
+
+                    /*
+                    ==========================================
+                    CART
+                    ==========================================
+                    */
+
+                    let cartItems = 0;
+
+
+                    if (
+                        cartResult.status ===
+                        "fulfilled"
+                    ) {
+
+                        const items =
+                            cartResult
+                                .value
+                                ?.data
+                                ?.items;
+
+
+                        cartItems =
+                            Array.isArray(
+                                items
+                            )
+                                ? items.length
+                                : 0;
+
+                    } else {
+
+                        console.warn(
+                            "GET CART ERROR:",
+                            cartResult.reason
+                                ?.response
+                                ?.data ||
+                            cartResult.reason
+                                ?.message ||
+                            cartResult.reason
+                        );
+
+                    }
+
+
+                    /*
+                    ==========================================
+                    NOTIFICATIONS
+                    ==========================================
+                    */
+
+                    if (
+                        notificationResult.status ===
+                        "fulfilled"
+                    ) {
+
+                        const serverNotifications =
+                            notificationResult
+                                .value
+                                ?.data
+                                ?.notifications;
+
+
+                        setNotifications(
+                            Array.isArray(
+                                serverNotifications
+                            )
+                                ? serverNotifications
+                                : []
+                        );
+
+                    } else {
+
+                        console.warn(
+                            "GET NOTIFICATIONS ERROR:",
+                            notificationResult.reason
+                                ?.response
+                                ?.data ||
+                            notificationResult.reason
+                                ?.message ||
+                            notificationResult.reason
+                        );
+
+
+                        /*
+                        --------------------------------------
+                        DO NOT BREAK DASHBOARD
+                        --------------------------------------
+                        */
+
+                        setNotifications([]);
+
+                    }
+
+
+                    /*
+                    ==========================================
+                    NORMALIZE ORDER STATUS
+                    ==========================================
+                    */
+
+                    const normalizedOrders =
+                        orders.map(
+                            order => ({
+
+                                ...order,
+
+                                normalizedStatus:
+                                    String(
+                                        order.status ||
+                                        ""
+                                    )
+                                        .trim()
+                                        .toUpperCase()
+
+                            })
+                        );
+
+
+                    /*
+                    ==========================================
+                    TOTAL ORDERS
+                    ==========================================
+                    */
+
+                    const totalOrders =
+                        normalizedOrders.length;
+
+
+                    /*
+                    ==========================================
+                    PENDING ORDERS
+                    ==========================================
+                    */
+
+                    const pendingOrders =
+                        normalizedOrders.filter(
+                            order =>
+                                order.normalizedStatus ===
+                                "PENDING_SELLER_ACCEPTANCE"
+                        ).length;
+
+
+                    /*
+                    ==========================================
+                    ACCEPTED ORDERS
+
+                    ACCEPTED
+                    PROCESSING
+                    SHIPPED
+                    DELIVERED
+                    ==========================================
+                    */
+
+                    const acceptedOrders =
+                        normalizedOrders.filter(
+                            order =>
+                                [
+                                    "ACCEPTED",
+                                    "PROCESSING",
+                                    "SHIPPED",
+                                    "DELIVERED"
+                                ].includes(
+                                    order.normalizedStatus
+                                )
+                        ).length;
+
+
+                    /*
+                    ==========================================
+                    CANCELLED ORDERS
+
+                    CANCELLED
+                    REJECTED
+                    ==========================================
+                    */
+
+                    const cancelledOrders =
+                        normalizedOrders.filter(
+                            order =>
+                                [
+                                    "CANCELLED",
+                                    "REJECTED"
+                                ].includes(
+                                    order.normalizedStatus
+                                )
+                        ).length;
+
+
+                    /*
+                    ==========================================
+                    UPDATE STATS
+                    ==========================================
+                    */
+
+                    setStats({
+
+                        totalOrders,
+
+                        pendingOrders,
+
+                        acceptedOrders,
+
+                        cancelledOrders,
+
+                        cartItems
+
+                    });
+
+
+                    /*
+                    ==========================================
+                    DEBUG
+                    ==========================================
+                    */
+
+                    console.log(
+                        "CUSTOMER DASHBOARD LOADED:",
+                        {
+                            user: currentUser,
+                            orders,
+                            totalOrders,
+                            pendingOrders,
+                            acceptedOrders,
+                            cancelledOrders,
+                            cartItems
+                        }
+                    );
+
+
+                    /*
+                    ==========================================
+                    IMPORTANT:
+
+                    If orders request failed, do not pretend
+                    that customer has zero orders.
+                    ==========================================
+                    */
+
+                    if (
+                        orderResult.status ===
+                        "rejected"
+                    ) {
+
+                        setError(
+                            "Unable to load your orders. Please try again."
+                        );
+
+                    }
+
+
+                } catch (requestError) {
+
+                    console.error(
+                        "CUSTOMER DASHBOARD ERROR:",
+                        requestError
+                    );
+
+
+                    /*
+                    ==========================================
+                    401 = AUTHENTICATION PROBLEM
+                    ==========================================
+                    */
+
+                    if (
+                        requestError.response
+                            ?.status === 401
+                    ) {
+
+                        navigate(
+                            "/login",
+                            {
+                                replace: true
+                            }
+                        );
+
+                        return;
+
+                    }
+
+
+                    /*
+                    ==========================================
+                    OTHER ERROR
+                    ==========================================
+                    */
+
+                    setError(
+
+                        requestError
+                            .response
+                            ?.data
+                            ?.message ||
+
+                        "Unable to load dashboard. Please try again."
+
+                    );
+
+                } finally {
+
+                    setLoading(false);
+
+                }
+
+            },
+
+            [navigate]
         );
 
-        setNotifications([]);
 
-        setNotificationsRead(true);
+    /*
+    ==================================================
+    INITIAL LOAD
+    ==================================================
+    */
 
-        setShowNotifications(true);
+    useEffect(
+        () => {
 
-    } catch (error) {
+            loadDashboard();
 
-        console.error(
-            "MARK ALL READ ERROR:",
-            error.response?.data ||
-            error.message ||
-            error
-        );
-
-    }
-
-};
-function createNotifications(
-    orders
-) {
-
-    if (
-        !Array.isArray(orders)
-    ) {
-
-        return [];
-
-    }
-
-
-    const result = [];
-
-
-    orders.forEach(
-        order => {
-
-            const referenceNo =
-                order.referenceNo ||
-                order.reference_no ||
-                `#${order.id}`;
-
-
-            const status =
-                String(
-                    order.status || ""
-                ).toUpperCase();
-
-
-            /*
-            =================================
-            PENDING
-            =================================
-            */
-
-            if (
-                status ===
-                "PENDING_SELLER_ACCEPTANCE"
-            ) {
-
-                result.push({
-
-                    id:
-                        `pending-${order.id}`,
-
-                    type:
-                        "pending",
-
-                    title:
-                        "Order pending",
-
-                    message:
-                        `Order ${referenceNo} is waiting for seller acceptance.`,
-
-                    orderId:
-                        order.id,
-
-                    referenceNo,
-
-                    createdAt:
-                        order.created_at ||
-                        order.createdAt ||
-                        null
-
-                });
-
-            }
-
-
-            /*
-            =================================
-            ACCEPTED
-            =================================
-            */
-
-            else if (
-                status ===
-                    "ACCEPTED" ||
-                status ===
-                    "PROCESSING"
-            ) {
-
-                result.push({
-
-                    id:
-                        `accepted-${order.id}`,
-
-                    type:
-                        "accepted",
-
-                    title:
-                        "Order accepted",
-
-                    message:
-                        `Your order ${referenceNo} has been accepted by the seller.`,
-
-                    orderId:
-                        order.id,
-
-                    referenceNo,
-
-                    createdAt:
-                        order.updated_at ||
-                        order.updatedAt ||
-                        null
-
-                });
-
-            }
-
-
-            /*
-            =================================
-            SHIPPED
-            =================================
-            */
-
-            else if (
-                status ===
-                "SHIPPED"
-            ) {
-
-                result.push({
-
-                    id:
-                        `shipped-${order.id}`,
-
-                    type:
-                        "shipped",
-
-                    title:
-                        "Order shipped",
-
-                    message:
-                        `Your order ${referenceNo} has been shipped.`,
-
-                    orderId:
-                        order.id,
-
-                    referenceNo,
-
-                    createdAt:
-                        order.updated_at ||
-                        order.updatedAt ||
-                        null
-
-                });
-
-            }
-
-
-            /*
-            =================================
-            DELIVERED
-            =================================
-            */
-
-            else if (
-                status ===
-                "DELIVERED"
-            ) {
-
-                result.push({
-
-                    id:
-                        `delivered-${order.id}`,
-
-                    type:
-                        "delivered",
-
-                    title:
-                        "Order delivered",
-
-                    message:
-                        `Your order ${referenceNo} has been delivered successfully.`,
-
-                    orderId:
-                        order.id,
-
-                    referenceNo,
-
-                    createdAt:
-                        order.updated_at ||
-                        order.updatedAt ||
-                        null
-
-                });
-
-            }
-
-
-            /*
-            =================================
-            CANCELLED
-            =================================
-            */
-
-            else if (
-                status ===
-                    "CANCELLED" ||
-                status ===
-                    "REJECTED"
-            ) {
-
-                result.push({
-
-                    id:
-                        `cancelled-${order.id}`,
-
-                    type:
-                        "cancelled",
-
-                    title:
-                        "Order cancelled",
-
-                    message:
-                        `Your order ${referenceNo} has been cancelled or rejected.`,
-
-                    orderId:
-                        order.id,
-
-                    referenceNo,
-
-                    createdAt:
-                        order.updated_at ||
-                        order.updatedAt ||
-                        null
-
-                });
-
-            }
-
-        }
+        },
+        [loadDashboard]
     );
 
 
-    return result;
+    /*
+    ==================================================
+    REFRESH WHEN USER RETURNS TO THIS TAB
+    ==================================================
 
-}
+    This helps when order status/cart changes in another
+    tab or after coming back from another page.
+    ==================================================
+    */
+
+    useEffect(
+        () => {
+
+            function handleVisibilityChange() {
+
+                if (
+                    document.visibilityState ===
+                    "visible"
+                ) {
+
+                    loadDashboard();
+
+                }
+
+            }
+
+
+            document.addEventListener(
+                "visibilitychange",
+                handleVisibilityChange
+            );
+
+
+            return () => {
+
+                document.removeEventListener(
+                    "visibilitychange",
+                    handleVisibilityChange
+                );
+
+            };
+
+        },
+        [loadDashboard]
+    );
+
+
+    /*
+    ==================================================
+    MARK ALL NOTIFICATIONS READ
+    ==================================================
+    */
+
+    const handleMarkAllRead =
+        async () => {
+
+            try {
+
+                await api.patch(
+                    "/notifications/read-all"
+                );
+
+
+                setNotifications(
+                    previousNotifications =>
+
+                        previousNotifications.map(
+                            notification => ({
+
+                                ...notification,
+
+                                isRead: 1
+
+                            })
+                        )
+
+                );
+
+
+                setShowNotifications(
+                    true
+                );
+
+
+            } catch (markReadError) {
+
+                console.error(
+                    "MARK ALL READ ERROR:",
+                    markReadError
+                        .response
+                        ?.data ||
+                    markReadError
+                        .message ||
+                    markReadError
+                );
+
+            }
+
+        };
+
+
+    /*
+    ==================================================
+    CUSTOMER NAME
+    ==================================================
+    */
+
+    const customerName =
+        user?.full_name ||
+        user?.name ||
+        "Customer";
+
+
+    /*
+    ==================================================
+    UNREAD NOTIFICATION COUNT
+    ==================================================
+    */
+
+    const unreadNotificationCount =
+        notifications.filter(
+            notification =>
+                Number(
+                    notification.isRead
+                ) === 0
+        ).length;
+
+
+    /*
+    ==================================================
+    LOADING SCREEN
+    ==================================================
+    */
+
     if (loading) {
 
         return (
 
-            <div className="customer-dashboard-loading">
+            <div
+                className="customer-dashboard-loading"
+            >
 
                 <RefreshCw
                     size={22}
@@ -564,30 +818,31 @@ function createNotifications(
     }
 
 
-    /*
-    ==========================================
-    USER NAME
-    ==========================================
-    */
-
-    const customerName =
-        user?.full_name ||
-        user?.name ||
-        "Customer";
-
     return (
 
-        <div className="customer-dashboard-page">
+        <div
+            className="customer-dashboard-page"
+        >
 
-            <header className="customer-dashboard-header">
+            {/* =================================================
+                HEADER
+            ================================================= */}
 
+            <header
+                className="customer-dashboard-header"
+            >
 
-                <div className="customer-dashboard-left">
+                <div
+                    className="customer-dashboard-left"
+                >
 
+                    <div
+                        className="customer-dashboard-brand"
+                    >
 
-                    <div className="customer-dashboard-brand">
-
-                        <div className="customer-brand-icon">
+                        <div
+                            className="customer-brand-icon"
+                        >
 
                             <ShoppingBag
                                 size={17}
@@ -613,73 +868,94 @@ function createNotifications(
                 </div>
 
 
-                <div className="customer-dashboard-right">
+                <div
+                    className="customer-dashboard-right"
+                >
 
-                    <div className="notification-wrapper">
+                    {/* =================================================
+                        NOTIFICATION
+                    ================================================= */}
 
-    <button
-        type="button"
-        className="customer-notification-button"
-        onClick={() => {
+                    <div
+                        className="notification-wrapper"
+                    >
 
-            setShowNotifications(
-                previous =>
-                    !previous
-            );
+                        <button
+                            type="button"
+                            className="customer-notification-button"
+                            onClick={() => {
 
-        }}
-    >
+                                setShowNotifications(
+                                    previous =>
+                                        !previous
+                                );
 
-        <Bell
-            size={17}
-        />
+                            }}
+                        >
 
-        {notifications.length > 0 && (
-
-    <span className="notification-badge">
-        {notifications.length}
-    </span>
-
-)}
-
-    </button>
+                            <Bell
+                                size={17}
+                            />
 
 
-    {showNotifications && (
+                            {unreadNotificationCount > 0 && (
 
-        <NotificationPopup
-            notifications={
-                notifications
-            }
+                                <span
+                                    className="notification-badge"
+                                >
+                                    {
+                                        unreadNotificationCount
+                                    }
+                                </span>
 
-            onClose={() =>
-                setShowNotifications(
-                    false
-                )
-            }
+                            )}
 
-            onViewOrder={referenceNo => {
+                        </button>
 
-                setShowNotifications(
-                    false
-                );
 
-                navigate(
-                    `/profile/orders/${referenceNo}`
-                );
+                        {showNotifications && (
 
-            }}
+                            <NotificationPopup
 
-            onMarkAllRead={() =>
-                handleMarkAllRead()
-                
-            }
+                                notifications={
+                                    notifications
+                                }
 
-        />
+                                onClose={() =>
+                                    setShowNotifications(
+                                        false
+                                    )
+                                }
 
-    )}
+                                onViewOrder={
+                                    referenceNo => {
 
-</div>
+                                        setShowNotifications(
+                                            false
+                                        );
+
+
+                                        navigate(
+                                            `/profile/orders/${referenceNo}`
+                                        );
+
+                                    }
+                                }
+
+                                onMarkAllRead={
+                                    handleMarkAllRead
+                                }
+
+                            />
+
+                        )}
+
+                    </div>
+
+
+                    {/* =================================================
+                        LOGOUT
+                    ================================================= */}
 
                     <LogoutButton />
 
@@ -687,14 +963,24 @@ function createNotifications(
 
             </header>
 
-            <main className="customer-dashboard-main">
 
-                <section className="customer-dashboard-hero">
+            <main
+                className="customer-dashboard-main"
+            >
 
+                {/* =================================================
+                    HERO
+                ================================================= */}
+
+                <section
+                    className="customer-dashboard-hero"
+                >
 
                     <div>
 
-                        <p className="customer-eyebrow">
+                        <p
+                            className="customer-eyebrow"
+                        >
                             CUSTOMER WORKSPACE
                         </p>
 
@@ -712,18 +998,21 @@ function createNotifications(
                         </h1>
 
 
-                        <p className="customer-dashboard-description">
-
+                        <p
+                            className="customer-dashboard-description"
+                        >
                             Discover premium export-import
                             products, manage your cart and
                             track every order from one place.
-
                         </p>
 
 
-                        <div className="customer-hero-actions">
+                        <div
+                            className="customer-hero-actions"
+                        >
 
                             <button
+                                type="button"
                                 className="customer-primary-button"
                                 onClick={() =>
                                     navigate(
@@ -746,6 +1035,7 @@ function createNotifications(
 
 
                             <button
+                                type="button"
                                 className="customer-secondary-button"
                                 onClick={() =>
                                     navigate(
@@ -760,15 +1050,15 @@ function createNotifications(
 
                                 Cart
 
-                                {stats.cartItems >
-                                    0 && (
 
-                                    <span className="cart-badge">
+                                {stats.cartItems > 0 && (
 
+                                    <span
+                                        className="cart-badge"
+                                    >
                                         {
                                             stats.cartItems
                                         }
-
                                     </span>
 
                                 )}
@@ -780,9 +1070,13 @@ function createNotifications(
                     </div>
 
 
-                    <div className="customer-hero-visual">
+                    <div
+                        className="customer-hero-visual"
+                    >
 
-                        <div className="hero-visual-circle">
+                        <div
+                            className="hero-visual-circle"
+                        >
 
                             <ShoppingBag
                                 size={65}
@@ -792,7 +1086,9 @@ function createNotifications(
                         </div>
 
 
-                        <div className="hero-floating-card">
+                        <div
+                            className="hero-floating-card"
+                        >
 
                             <CheckCircle
                                 size={15}
@@ -817,27 +1113,49 @@ function createNotifications(
                 </section>
 
 
-                {/* =================================
+                {/* =================================================
                     ERROR
-                ================================= */}
+                ================================================= */}
 
                 {error && (
 
-                    <div className="customer-dashboard-error">
+                    <div
+                        className="customer-dashboard-error"
+                    >
 
-                        {error}
+                        <span>
+                            {error}
+                        </span>
+
+
+                        <button
+                            type="button"
+                            onClick={
+                                loadDashboard
+                            }
+                        >
+                            <RefreshCw
+                                size={15}
+                            />
+
+                            Retry
+
+                        </button>
 
                     </div>
 
                 )}
 
 
-                {/* =================================
+                {/* =================================================
                     STATISTICS
-                ================================= */}
+                ================================================= */}
 
-                <section className="customer-stats-grid">
+                <section
+                    className="customer-stats-grid"
+                >
 
+                    {/* TOTAL ORDERS */}
 
                     <div
                         className="customer-stat-card"
@@ -848,7 +1166,9 @@ function createNotifications(
                         }
                     >
 
-                        <div className="stat-icon">
+                        <div
+                            className="stat-icon"
+                        >
 
                             <Package
                                 size={19}
@@ -874,6 +1194,8 @@ function createNotifications(
                     </div>
 
 
+                    {/* PENDING */}
+
                     <div
                         className="customer-stat-card"
                         onClick={() =>
@@ -883,7 +1205,9 @@ function createNotifications(
                         }
                     >
 
-                        <div className="stat-icon pending">
+                        <div
+                            className="stat-icon pending"
+                        >
 
                             <Clock3
                                 size={19}
@@ -909,6 +1233,8 @@ function createNotifications(
                     </div>
 
 
+                    {/* ACCEPTED */}
+
                     <div
                         className="customer-stat-card"
                         onClick={() =>
@@ -918,7 +1244,9 @@ function createNotifications(
                         }
                     >
 
-                        <div className="stat-icon accepted">
+                        <div
+                            className="stat-icon accepted"
+                        >
 
                             <CheckCircle
                                 size={19}
@@ -944,6 +1272,8 @@ function createNotifications(
                     </div>
 
 
+                    {/* CANCELLED */}
+
                     <div
                         className="customer-stat-card"
                         onClick={() =>
@@ -953,7 +1283,9 @@ function createNotifications(
                         }
                     >
 
-                        <div className="stat-icon cancelled">
+                        <div
+                            className="stat-icon cancelled"
+                        >
 
                             <XCircle
                                 size={19}
@@ -981,14 +1313,17 @@ function createNotifications(
                 </section>
 
 
-                {/* =================================
-                    QUICK ACTIONS
-                ================================= */}
+                {/* =================================================
+                    QUICK ACCESS
+                ================================================= */}
 
-                <section className="customer-dashboard-section">
+                <section
+                    className="customer-dashboard-section"
+                >
 
-
-                    <div className="customer-section-heading">
+                    <div
+                        className="customer-section-heading"
+                    >
 
                         <div>
 
@@ -1005,10 +1340,14 @@ function createNotifications(
                     </div>
 
 
-                    <div className="customer-action-grid">
+                    <div
+                        className="customer-action-grid"
+                    >
 
+                        {/* BROWSE PRODUCTS */}
 
                         <button
+                            type="button"
                             className="customer-action-card"
                             onClick={() =>
                                 navigate(
@@ -1017,7 +1356,9 @@ function createNotifications(
                             }
                         >
 
-                            <div className="action-card-icon blue">
+                            <div
+                                className="action-card-icon blue"
+                            >
 
                                 <ShoppingBag
                                     size={21}
@@ -1048,7 +1389,10 @@ function createNotifications(
                         </button>
 
 
+                        {/* CART */}
+
                         <button
+                            type="button"
                             className="customer-action-card"
                             onClick={() =>
                                 navigate(
@@ -1057,7 +1401,9 @@ function createNotifications(
                             }
                         >
 
-                            <div className="action-card-icon purple">
+                            <div
+                                className="action-card-icon purple"
+                            >
 
                                 <ShoppingCart
                                     size={21}
@@ -1087,7 +1433,10 @@ function createNotifications(
                         </button>
 
 
+                        {/* ORDERS */}
+
                         <button
+                            type="button"
                             className="customer-action-card"
                             onClick={() =>
                                 navigate(
@@ -1096,7 +1445,9 @@ function createNotifications(
                             }
                         >
 
-                            <div className="action-card-icon green">
+                            <div
+                                className="action-card-icon green"
+                            >
 
                                 <Package
                                     size={21}
@@ -1127,7 +1478,10 @@ function createNotifications(
                         </button>
 
 
+                        {/* PROFILE */}
+
                         <button
+                            type="button"
                             className="customer-action-card"
                             onClick={() =>
                                 navigate(
@@ -1136,7 +1490,9 @@ function createNotifications(
                             }
                         >
 
-                            <div className="action-card-icon orange">
+                            <div
+                                className="action-card-icon orange"
+                            >
 
                                 <UserRound
                                     size={21}
@@ -1170,14 +1526,17 @@ function createNotifications(
                 </section>
 
 
-                {/* =================================
+                {/* =================================================
                     SECURITY
-                ================================= */}
+                ================================================= */}
 
-                <section className="customer-security-card">
+                <section
+                    className="customer-security-card"
+                >
 
-
-                    <div className="security-icon">
+                    <div
+                        className="security-icon"
+                    >
 
                         <CheckCircle
                             size={22}
@@ -1193,24 +1552,24 @@ function createNotifications(
                         </strong>
 
                         <span>
-
                             Every order is verified
                             through your registered
                             email before confirmation.
-
                         </span>
 
                     </div>
 
 
-                    <div className="security-status">
+                    <div
+                        className="security-status"
+                    >
 
                         <span>
                             Account
                         </span>
 
                         <strong>
-                            {user?.role || "CUSTOMER"}
+                            CUSTOMER
                         </strong>
 
                     </div>
@@ -1221,15 +1580,43 @@ function createNotifications(
             </main>
 
         </div>
+
     );
 
 }
+
+
+/*
+==================================================
+NOTIFICATION ICON
+==================================================
+*/
+
 function NotificationIcon({
     type
 }) {
 
+    const normalizedType =
+        String(
+            type || ""
+        )
+            .trim()
+            .toLowerCase();
+
+
+    /*
+    ACCEPTED
+    */
+
     if (
-        type === "accepted"
+        [
+            "accepted",
+            "order_accepted",
+            "order accepted",
+            "accept"
+        ].includes(
+            normalizedType
+        )
     ) {
 
         return (
@@ -1249,8 +1636,18 @@ function NotificationIcon({
     }
 
 
+    /*
+    PENDING
+    */
+
     if (
-        type === "pending"
+        [
+            "pending",
+            "order_pending",
+            "pending_seller_acceptance"
+        ].includes(
+            normalizedType
+        )
     ) {
 
         return (
@@ -1270,8 +1667,17 @@ function NotificationIcon({
     }
 
 
+    /*
+    SHIPPED
+    */
+
     if (
-        type === "shipped"
+        [
+            "shipped",
+            "order_shipped"
+        ].includes(
+            normalizedType
+        )
     ) {
 
         return (
@@ -1291,8 +1697,17 @@ function NotificationIcon({
     }
 
 
+    /*
+    DELIVERED
+    */
+
     if (
-        type === "delivered"
+        [
+            "delivered",
+            "order_delivered"
+        ].includes(
+            normalizedType
+        )
     ) {
 
         return (
@@ -1312,13 +1727,46 @@ function NotificationIcon({
     }
 
 
+    /*
+    CANCELLED / REJECTED
+    */
+
+    if (
+        [
+            "cancelled",
+            "canceled",
+            "order_cancelled",
+            "rejected",
+            "order_rejected"
+        ].includes(
+            normalizedType
+        )
+    ) {
+
+        return (
+
+            <div
+                className="notification-icon cancelled"
+            >
+
+                <XCircle
+                    size={18}
+                />
+
+            </div>
+
+        );
+
+    }
+
+
     return (
 
         <div
-            className="notification-icon cancelled"
+            className="notification-icon pending"
         >
 
-            <XCircle
+            <Bell
                 size={18}
             />
 
@@ -1327,6 +1775,14 @@ function NotificationIcon({
     );
 
 }
+
+
+/*
+==================================================
+NOTIFICATION POPUP
+==================================================
+*/
+
 function NotificationPopup({
 
     notifications,
@@ -1338,7 +1794,11 @@ function NotificationPopup({
     onMarkAllRead
 
 }) {
-    const navigate = useNavigate();
+
+    const navigate =
+        useNavigate();
+
+
     return (
 
         <div
@@ -1511,5 +1971,6 @@ function NotificationPopup({
     );
 
 }
+
 
 export default CustomerDashboard;

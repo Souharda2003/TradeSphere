@@ -19,27 +19,15 @@ const {
     updateStock,
     getPublicProducts,
     getPublicProduct,
-    updateSellerProduct
+    updateSellerProduct,
+    deleteSellerProduct
 } = require("../controllers/productController");
 
-
-/*
-==================================================
-PUBLIC / CUSTOMER
-==================================================
-*/
 
 router.get(
     "/",
     getPublicProducts
 );
-
-
-/*
-==================================================
-SELLER
-==================================================
-*/
 
 router.post(
     "/",
@@ -72,8 +60,12 @@ router.put(
     requireRole("SELLER"),
     updateSellerProduct
 );
-
-
+router.delete(
+    "/seller/:id",
+    authenticateToken,
+    requireRole("SELLER"),
+    deleteSellerProduct
+);
 router.patch(
     "/seller/:id/stock",
     authenticateToken,

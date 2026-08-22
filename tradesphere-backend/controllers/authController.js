@@ -314,21 +314,6 @@ async function register(req, res) {
 
         }
 
-
-        // =================================================
-        // CHECK EMAIL + ROLE
-        //
-        // SAME EMAIL IS ALLOWED FOR:
-        //
-        // abc@gmail.com + CUSTOMER
-        // abc@gmail.com + SELLER
-        //
-        // BUT NOT:
-        //
-        // abc@gmail.com + CUSTOMER
-        // abc@gmail.com + CUSTOMER
-        // =================================================
-
         const [
             emailUsers
         ] = await pool.execute(

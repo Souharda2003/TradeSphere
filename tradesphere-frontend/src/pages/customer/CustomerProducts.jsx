@@ -83,12 +83,6 @@ function CustomerProducts() {
         useState("");
 
 
-    /*
-    =========================================
-    LOAD PRODUCTS
-    =========================================
-    */
-
     useEffect(() => {
 
         loadProducts();
@@ -141,13 +135,6 @@ function CustomerProducts() {
         }
 
     }
-
-
-    /*
-    =========================================
-    LOAD CART
-    =========================================
-    */
 
     useEffect(() => {
 
@@ -274,12 +261,6 @@ const cartTotal =
 
         }, [products]);
 
-
-    /*
-    =========================================
-    FILTERED PRODUCTS
-    =========================================
-    */
 
     const filteredProducts =
         useMemo(() => {
@@ -675,10 +656,6 @@ async function handleVerifyOtp() {
         <div className="customer-products-page">
 
 
-            {/* =================================
-                HEADER
-            ================================= */}
-
             <header className="customer-products-header">
 
 
@@ -792,11 +769,6 @@ async function handleVerifyOtp() {
                         import products from verified sellers.
                     </span>
                 </section>
-
-
-                {/* =================================
-                    SEARCH + FILTER
-                ================================= */}
 
                 <section
                     className="customer-search-area"
@@ -1294,10 +1266,6 @@ async function handleVerifyOtp() {
             </main>
 
 
-            {/* =========================================
-                ORDER CONFIRMATION MODAL
-            ========================================= */}
-
             {showConfirmModal && (
 
                 <div
@@ -1515,11 +1483,6 @@ async function handleVerifyOtp() {
                 </div>
 
             )}
-
-
-            {/* =========================================
-                OTP MODAL
-            ========================================= */}
 
             {showOtpModal && (
 

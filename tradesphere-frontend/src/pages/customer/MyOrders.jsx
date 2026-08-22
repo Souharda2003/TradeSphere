@@ -89,43 +89,29 @@ function MyOrders() {
                 return;
             }
 
-
             setError(
-
                 error.response
                     ?.data
                     ?.message ||
-
                 "Unable to load orders."
-
             );
-
         } finally {
-
             setLoading(false);
         }
-
     }
-
-
     function getStatusIcon(
         status
     ) {
-
         if (
             status ===
             "PENDING_SELLER_ACCEPTANCE"
         ) {
-
             return (
                 <Clock3
                     size={15}
                 />
             );
-
         }
-
-
         if (
             [
                 "ACCEPTED",
@@ -136,25 +122,18 @@ function MyOrders() {
                 status
             )
         ) {
-
             return (
                 <CheckCircle
                     size={15}
                 />
             );
-
         }
-
-
         return (
             <XCircle
                 size={15}
             />
         );
-
     }
-
-
     function getStatusText(
         status
     ) {

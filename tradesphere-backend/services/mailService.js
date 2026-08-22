@@ -244,11 +244,6 @@ async function sendOrderOTP({
         customerName ||
         "Customer";
 
-
-    /* ================================
-       HTML EMAIL
-    ================================= */
-
     const htmlContent = `
 
 <!DOCTYPE html>
@@ -480,10 +475,6 @@ text-align:center;
 
 `;
 
-
-    /* ================================
-       TEXT EMAIL
-    ================================= */
 
     const textContent =
 

@@ -1,39 +1,69 @@
-const express = require("express");
+const express =
+    require("express");
+
 
 const router =
     express.Router();
 
+
 const authenticateToken =
     require("../middleware/authMiddleware");
 
+
 const {
+
     getMyNotifications,
+
+    getUnreadNotificationCount,
+
+    markNotificationRead,
+
     markAllNotificationsRead
+
 } = require(
     "../controllers/notificationController"
 );
 
+router.get(
 
-// ==========================================
-// GET MY UNREAD NOTIFICATIONS
-// ==========================================
+    "/",
+
+    authenticateToken,
+
+    getMyNotifications
+
+);
 
 router.get(
-    "/",
+
+    "/unread-count",
+
     authenticateToken,
-    getMyNotifications
+
+    getUnreadNotificationCount
+
 );
 
+router.patch(
 
-// ==========================================
-// MARK ALL AS READ
-// ==========================================
+    "/:id/read",
 
-router.put(
+    authenticateToken,
+
+    markNotificationRead
+
+);
+
+router.patch(
+
     "/read-all",
+
     authenticateToken,
+
     markAllNotificationsRead
+
 );
 
 
-module.exports = router;
+module.exports =
+    router;

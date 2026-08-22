@@ -59,10 +59,29 @@ function OrderDetails() {
     useState(false);
     useEffect(() => {
 
-        loadOrder();
+    loadOrder();
 
-    }, [referenceNo]);
 
+    const interval =
+        setInterval(
+            () => {
+
+                loadOrder();
+
+            },
+            10000
+        );
+
+
+    return () => {
+
+        clearInterval(
+            interval
+        );
+
+    };
+
+}, [referenceNo]);
 
     async function loadOrder() {
 

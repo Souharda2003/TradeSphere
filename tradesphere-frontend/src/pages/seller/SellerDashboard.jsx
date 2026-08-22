@@ -14,18 +14,16 @@ import {
     Bell,
     Plus,
     BarChart3,
-    MessageSquare,
-    RefreshCw
+    MessageSquare
 } from "lucide-react";
 
 import api from "../../services/api";
-
-import BackButton
-    from "../../components/BackButton";
-
+import NotificationBell
+    from "../../components/seller/NotificationBell";
 import LogoutButton
     from "../../components/LogoutButton";
-
+import SellerOrderModal
+    from "../../components/seller/SellerOrderModal";
 import "../../styles/dashboard.css";
 
 
@@ -42,17 +40,24 @@ function SellerDashboard() {
 
     const [loading, setLoading] =
         useState(true);
-
-
-    const [productsLoading, setProductsLoading] =
-        useState(false);
-
+const [
+    selectedSellerOrderId,
+    setSelectedSellerOrderId
+] = useState(null);
     const [error, setError] =
         useState("");
+    const [recentOrders, setRecentOrders] =
+    useState([]);
 
+const [newOrdersCount, setNewOrdersCount] =
+    useState(0);
+
+const [totalSales, setTotalSales] =
+    useState(0);
     useEffect(() => {
 
         loadDashboard();
+        loadSellerOrders();
 
     }, []);
 
@@ -65,11 +70,6 @@ function SellerDashboard() {
 
             setError("");
 
-
-            // ================================
-            // USER
-            // ================================
-
             const userResponse =
                 await api.get(
                     "/user/me"
@@ -79,12 +79,6 @@ function SellerDashboard() {
             setUser(
                 userResponse.data.user
             );
-
-
-            // ================================
-            // SELLER PRODUCTS
-            // ================================
-
             const productResponse =
                 await api.get(
                     "/products/seller"
@@ -121,48 +115,9 @@ function SellerDashboard() {
     }
 
 
-    async function refreshProducts() {
-
-        try {
-
-            setProductsLoading(true);
-
-            const response =
-                await api.get(
-                    "/products/seller"
-                );
-
-
-            setProducts(
-                response.data.products || []
-            );
-
-
-        } catch (error) {
-
-            console.error(
-                "REFRESH PRODUCTS ERROR:",
-                error
-            );
-
-        } finally {
-
-            setProductsLoading(false);
-        }
-    }
-
-
-    // =========================================
-    // TOTAL PRODUCTS
-    // =========================================
 
     const totalProducts =
         products.length;
-
-
-    // =========================================
-    // TOTAL STOCK BY UNIT
-    // =========================================
 
     const stockByUnit =
         products.reduce(
@@ -199,11 +154,6 @@ function SellerDashboard() {
             },
             {}
         );
-
-
-    // =========================================
-    // AVAILABLE STOCK BY UNIT
-    // =========================================
 
     const availableStockByUnit =
         products.reduce(
@@ -242,11 +192,6 @@ function SellerDashboard() {
             {}
         );
 
-
-    // =========================================
-    // RESERVED STOCK
-    // =========================================
-
     const reservedStockByUnit =
         products.reduce(
             (
@@ -284,11 +229,6 @@ function SellerDashboard() {
             {}
         );
 
-
-    // =========================================
-    // FORMAT STOCK
-    // =========================================
-
     function formatStock(
         stockObject
     ) {
@@ -317,123 +257,289 @@ function SellerDashboard() {
                     ).toLocaleString(
                         "en-IN"
                     )} ${unit}`;
-
                 }
             )
             .join(" • ");
     }
+async function loadSellerOrders() {
+
+    try {
+
+        /*
+        ==========================================
+        GET RECENT ORDERS
+        ==========================================
+        */
+
+        const recentResponse =
+            await api.get(
+                "/orders/seller/recent"
+            );
 
 
-    // =========================================
-    // LOADING SCREEN
-    // =========================================
+        const recentOrders =
+            recentResponse.data?.orders || [];
 
-    if (loading) {
 
-        return (
+        /*
+        ==========================================
+        SET RECENT ORDERS
+        ==========================================
+        */
 
-            <div className="dashboard-loading">
-
-                <RefreshCw
-                    size={22}
-                    className="dashboard-spin"
-                />
-
-                <span>
-                    Loading Seller Dashboard...
-                </span>
-
-            </div>
-
+        setRecentOrders(
+            recentOrders
         );
+
+
+        /*
+        ==========================================
+        NEW ORDERS COUNT
+        ==========================================
+        */
+
+        const pendingOrders =
+            recentOrders.filter(
+
+                order =>
+                    String(
+                        order.status || ""
+                    ).toUpperCase() ===
+                    "PENDING_SELLER_ACCEPTANCE"
+
+            );
+
+
+        setNewOrdersCount(
+            pendingOrders.length
+        );
+
+
+        /*
+        ==========================================
+        GET ALL SELLER ORDERS
+        ==========================================
+
+        IMPORTANT:
+
+        Recent endpoint only returns recent orders.
+
+        Sales must be calculated from ALL orders.
+        ==========================================
+        */
+
+        const allResponse =
+            await api.get(
+                "/orders/seller/all"
+            );
+
+
+        const allOrders =
+            allResponse.data?.orders || [];
+
+
+        /*
+        ==========================================
+        CALCULATE TOTAL SALES
+        ==========================================
+
+        ONLY DELIVERED ORDERS COUNT AS SALES.
+
+        DELIVERED  -> YES
+        SHIPPED    -> NO
+        PROCESSING -> NO
+        ACCEPTED   -> NO
+        CANCELLED  -> NO
+        REJECTED   -> NO
+        ==========================================
+        */
+
+        const deliveredOrders =
+            allOrders.filter(
+
+                order =>
+                    String(
+                        order.status || ""
+                    ).toUpperCase() ===
+                    "DELIVERED"
+
+            );
+
+
+        const sales =
+            deliveredOrders.reduce(
+
+                (
+                    total,
+                    order
+                ) => {
+
+                    return (
+                        total +
+                        Number(
+                            order.total_amount || 0
+                        )
+                    );
+
+                },
+
+                0
+
+            );
+
+
+        /*
+        ==========================================
+        UPDATE TOTAL SALES
+        ==========================================
+        */
+
+        setTotalSales(
+            sales
+        );
+
+
+        /*
+        ==========================================
+        DEBUG LOG
+        ==========================================
+        */
+
+        console.log(
+            "ALL SELLER ORDERS:",
+            allOrders
+        );
+
+        console.log(
+            "DELIVERED ORDERS:",
+            deliveredOrders
+        );
+
+        console.log(
+            "TOTAL SALES:",
+            sales
+        );
+
+
+    } catch (error) {
+
+        console.error(
+            "SELLER ORDERS ERROR:",
+            error
+        );
+
+
+        setTotalSales(
+            0
+        );
+
+    }
+
+}
+async function acceptOrder(orderId) {
+
+    try {
+
+        await api.patch(
+            `/orders/seller/${orderId}/accept`
+        );
+
+
+        await loadSellerOrders();
+
+
+    } catch (error) {
+
+        console.error(
+            "ACCEPT ORDER ERROR:",
+            error
+        );
+
+
+        alert(
+            error.response
+                ?.data
+                ?.message ||
+            "Unable to accept order."
+        );
+
+    }
+
+}async function rejectOrder(orderId) {
+
+    const confirmed =
+        window.confirm(
+            "Are you sure you want to reject this order?"
+        );
+
+
+    if (!confirmed) {
+        return;
     }
 
 
-    // =========================================
-    // DASHBOARD
-    // =========================================
+    try {
 
+        await api.patch(
+            `/orders/seller/${orderId}/reject`
+        );
+
+
+        await loadSellerOrders();
+
+
+    } catch (error) {
+
+        console.error(
+            "REJECT ORDER ERROR:",
+            error
+        );
+
+
+        alert(
+            error.response
+                ?.data
+                ?.message ||
+            "Unable to reject order."
+        );
+
+    }
+
+}
     return (
 
         <div className="seller-dashboard">
-
-
-            {/* =================================
-                HEADER
-            ================================= */}
 
             <header className="seller-header">
 
 
                 <div className="seller-header-left">
-
-                    <BackButton />
-
-
                     <div className="seller-brand">
 
                         <div className="seller-brand-logo">
                             TS
                         </div>
-
-
                         <div>
-
                             <strong>
                                 TradeSphere
                             </strong>
-
                             <span>
                                 Seller Center
                             </span>
-
                         </div>
-
                     </div>
-
                 </div>
 
-
-                {/* HEADER RIGHT */}
-
                 <div className="seller-header-right">
+                   <NotificationBell
+    onOpenOrder={orderId => {
 
+        setSelectedSellerOrderId(
+            orderId
+        );
 
-                    {/* REFRESH */}
-
-                    <button
-                        className="dashboard-icon-button"
-                        title="Refresh"
-                        onClick={
-                            refreshProducts
-                        }
-                    >
-
-                        <RefreshCw
-                            size={18}
-                            className={
-                                productsLoading
-                                    ? "dashboard-spin"
-                                    : ""
-                            }
-                        />
-
-                    </button>
-
-
-                    {/* NOTIFICATION */}
-
-                    <button
-                        className="dashboard-icon-button"
-                        title="Notifications"
-                    >
-
-                        <Bell size={19} />
-
-                        <span className="notification-dot">
-                        </span>
-
-                    </button>
+    }}
+/>
 
 
                     {/* PROFILE */}
@@ -475,16 +581,8 @@ function SellerDashboard() {
             </header>
 
 
-            {/* =================================
-                MAIN
-            ================================= */}
-
             <main className="seller-main">
 
-
-                {/* =================================
-                    ERROR
-                ================================= */}
 
                 {error && (
 
@@ -503,11 +601,6 @@ function SellerDashboard() {
                     </div>
 
                 )}
-
-
-                {/* =================================
-                    WELCOME
-                ================================= */}
 
                 <section className="seller-welcome">
 
@@ -559,16 +652,9 @@ function SellerDashboard() {
 
                 <section className="seller-stats">
 
-
-                    {/* TOTAL PRODUCTS */}
-
                     <div
                         className="seller-stat-card"
-                        onClick={() =>
-                            navigate(
-                                "/seller/products"
-                            )
-                        }
+
                     >
 
                         <div className="seller-stat-icon">
@@ -594,17 +680,9 @@ function SellerDashboard() {
                         </div>
 
                     </div>
-
-
-                    {/* TOTAL STOCK */}
-
                     <div
                         className="seller-stat-card"
-                        onClick={() =>
-                            navigate(
-                                "/seller/products"
-                            )
-                        }
+    
                     >
 
                         <div className="seller-stat-icon">
@@ -634,17 +712,9 @@ function SellerDashboard() {
                         </div>
 
                     </div>
-
-
-                    {/* NEW ORDERS */}
-
                     <div
                         className="seller-stat-card"
-                        onClick={() =>
-                            navigate(
-                                "/seller/orders"
-                            )
-                        }
+
                     >
 
                         <div className="seller-stat-icon">
@@ -664,15 +734,12 @@ function SellerDashboard() {
 
 
                             <strong>
-                                0
+                                {newOrdersCount}
                             </strong>
 
                         </div>
 
                     </div>
-
-
-                    {/* SALES */}
 
                     <div
                         className="seller-stat-card"
@@ -695,20 +762,23 @@ function SellerDashboard() {
 
 
                             <strong>
-                                ₹0
-                            </strong>
+    ₹{" "}
+    {Number(
+        totalSales || 0
+    ).toLocaleString(
+        "en-IN",
+        {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }
+    )}
+</strong>
 
                         </div>
 
                     </div>
 
                 </section>
-
-
-                {/* =================================
-                    INVENTORY SUMMARY
-                ================================= */}
-
                 {products.length > 0 && (
 
                     <section className="seller-section">
@@ -797,12 +867,6 @@ function SellerDashboard() {
                     </section>
 
                 )}
-
-
-                {/* =================================
-                    QUICK ACTIONS
-                ================================= */}
-
                 <section className="seller-section">
 
 
@@ -929,50 +993,9 @@ function SellerDashboard() {
 
                         </button>
 
-
-                        {/* MESSAGES */}
-
-                        <button
-                            className="seller-action-card"
-                            onClick={() =>
-                                navigate(
-                                    "/seller/messages"
-                                )
-                            }
-                        >
-
-                            <div className="seller-action-icon">
-
-                                <MessageSquare
-                                    size={22}
-                                />
-
-                            </div>
-
-
-                            <div>
-
-                                <strong>
-                                    Customer Messages
-                                </strong>
-
-                                <span>
-                                    Respond to customer
-                                    enquiries.
-                                </span>
-
-                            </div>
-
-                        </button>
-
                     </div>
 
                 </section>
-
-
-                {/* =================================
-                    RECENT PRODUCTS
-                ================================= */}
 
                 <section className="seller-section">
 
@@ -1051,16 +1074,10 @@ function SellerDashboard() {
                                     product => (
 
                                         <div
-                                            className="recent-product-card"
-                                            key={
-                                                product.id
-                                            }
-                                            onClick={() =>
-                                                navigate(
-                                                    `/seller/products/${product.id}`
-                                                )
-                                            }
-                                        >
+    className="recent-product-card"
+    key={product.id}
+    
+>
 
                                             <div className="recent-product-image">
 
@@ -1184,23 +1201,160 @@ function SellerDashboard() {
                     </div>
 
 
-                    <div className="seller-empty-state">
+                   {recentOrders.length === 0 ? (
+
+    <div className="seller-empty-state">
+
+        <ShoppingCart size={30} />
+
+        <strong>
+            No orders yet
+        </strong>
+
+        <span>
+            Customer orders will appear
+            here once they purchase
+            your products.
+        </span>
+
+    </div>
+
+) : (
+
+    <div className="seller-orders-list">
+
+        {recentOrders.map(order => (
+
+            <div
+                key={order.id}
+                className="seller-order-card"
+            >
+
+                <div className="seller-order-main">
+
+                    <div className="seller-order-icon">
 
                         <ShoppingCart
-                            size={30}
+                            size={20}
                         />
 
+                    </div>
+
+
+                    <div>
+
                         <strong>
-                            No orders yet
+                            {order.order_reference}
                         </strong>
 
                         <span>
-                            Customer orders will appear
-                            here once they purchase
-                            your products.
+                            Customer:{" "}
+                            {order.customer_name}
                         </span>
 
+                        <small>
+                            {new Date(
+                                order.created_at
+                            ).toLocaleString(
+                                "en-IN"
+                            )}
+                        </small>
+
                     </div>
+
+                </div>
+
+
+                <div className="seller-order-right">
+
+                    <strong>
+                        ₹
+                        {Number(
+                            order.total_amount
+                        ).toLocaleString(
+                            "en-IN"
+                        )}
+                    </strong>
+
+
+                    <span
+                        className={
+                            `order-status ${order.status
+                                .toLowerCase()
+                            }`
+                        }
+                    >
+                        {order.status}
+                    </span>
+
+
+                   {String(
+    order.status || ""
+).toUpperCase() ===
+"PENDING_SELLER_ACCEPTANCE" && (
+
+                        <div className="order-actions">
+
+                            <button
+                                type="button"
+                                className="order-accept-button"
+                                onClick={() =>
+                                    acceptOrder(
+                                        order.id
+                                    )
+                                }
+                            >
+                                Accept
+                            </button>
+
+
+                            <button
+                                type="button"
+                                className="order-reject-button"
+                                onClick={() =>
+                                    rejectOrder(
+                                        order.id
+                                    )
+                                }
+                            >
+                                Reject
+                            </button>
+
+                        </div>
+
+                    )}
+
+                </div>
+
+            </div>
+
+        ))}
+
+    </div>
+
+)}{selectedSellerOrderId && (
+
+    <SellerOrderModal
+
+        orderId={
+            selectedSellerOrderId
+        }
+
+        onClose={() =>
+            setSelectedSellerOrderId(
+                null
+            )
+        }
+
+        onUpdated={async () => {
+
+            await loadSellerOrders();
+
+        }}
+
+    />
+
+)}
 
                 </section>
 

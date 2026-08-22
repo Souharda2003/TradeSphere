@@ -1,40 +1,102 @@
 function requireRole(...allowedRoles) {
 
-    return (req, res, next) => {
+    return function (req, res, next) {
 
-        if (!req.user) {
+        try {
 
-            return res.status(401).json({
+            if (!req.user) {
+
+                return res.status(401).json({
+
+                    success: false,
+
+                    message:
+                        "Authentication required."
+
+                });
+
+            }
+
+
+            const userRole =
+                String(
+                    req.user.role ||
+                    req.user.userRole ||
+                    ""
+                )
+                .trim()
+                .toUpperCase();
+
+
+            const normalizedRoles =
+                allowedRoles.map(
+                    role =>
+                        String(role)
+                            .trim()
+                            .toUpperCase()
+                );
+
+
+            console.log(
+                "ROLE CHECK:",
+                {
+                    userRole,
+                    allowedRoles:
+                        normalizedRoles,
+                    user:
+                        req.user
+                }
+            );
+
+
+            if (
+                !normalizedRoles.includes(
+                    userRole
+                )
+            ) {
+
+                return res.status(403).json({
+
+                    success: false,
+
+                    message:
+                        "Access denied. Seller role required.",
+
+                    userRole,
+
+                    allowedRoles:
+                        normalizedRoles
+
+                });
+
+            }
+
+
+            next();
+
+        } catch (error) {
+
+            console.error(
+                "ROLE MIDDLEWARE ERROR:",
+                error
+            );
+
+
+            return res.status(500).json({
 
                 success: false,
 
                 message:
-                    "Authentication required"
+                    "Unable to verify user role."
 
             });
+
         }
 
-
-        if (
-            !allowedRoles.includes(
-                req.user.role
-            )
-        ) {
-
-            return res.status(403).json({
-
-                success: false,
-
-                message:
-                    "You do not have permission to access this resource"
-
-            });
-        }
-
-
-        next();
     };
+
 }
 
 
-module.exports = requireRole;
+module.exports =
+    requireRole;
