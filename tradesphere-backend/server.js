@@ -236,14 +236,7 @@ async function startServer() {
                     `Server: http://localhost:${PORT}`
                 );
 
-                console.log(
-                    `Health: http://localhost:${PORT}/api/health`
-                );
-
-                console.log(
-                    `Cart: http://localhost:${PORT}/api/cart`
-                );
-
+                
 
             }
 

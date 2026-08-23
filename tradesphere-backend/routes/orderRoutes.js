@@ -12,7 +12,11 @@ const authenticateToken =
 
 const requireRole =
     require("../middleware/roleMiddleware");
-
+const {
+    downloadInvoice
+} = require(
+    "../controllers/invoiceController"
+);
 
 const {
 
@@ -172,6 +176,17 @@ router.put(
     cancelOrder
 );
 
+/*
+==================================================
+CUSTOMER INVOICE
+==================================================
+*/
+
+router.get(
+    "/:referenceNo/invoice",
+    authenticateToken,
+    downloadInvoice
+);
 
 /*
 ==================================================

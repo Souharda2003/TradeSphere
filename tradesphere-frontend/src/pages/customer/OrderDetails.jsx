@@ -32,7 +32,6 @@ import api from "../../services/api";
 import Invoice from "../../components/invoice/Invoice";
 import "../../styles/orderDetails.css";
 
-
 const RETURN_WINDOW_DAYS = 7;
 
 const INVOICE_AVAILABLE_STATUSES = [
@@ -43,6 +42,33 @@ const INVOICE_AVAILABLE_STATUSES = [
     "RETURN_REJECTED"
 ];
 
+/*
+==================================================
+ORDER TIMELINE STATUSES
+==================================================
+
+This defines the normal order progression:
+
+PENDING_SELLER_ACCEPTANCE
+        ↓
+ACCEPTED
+        ↓
+PROCESSING
+        ↓
+SHIPPED
+        ↓
+DELIVERED
+
+==================================================
+*/
+
+const TIMELINE_STATUSES = [
+    "PENDING_SELLER_ACCEPTANCE",
+    "ACCEPTED",
+    "PROCESSING",
+    "SHIPPED",
+    "DELIVERED"
+];
 
 function OrderDetails() {
 
@@ -442,20 +468,32 @@ function printInvoice() {
         100
     );
 
-}
-    function formatMoney(value) {
+} /*
+    ==================================================
+    MONEY FORMAT
+    ==================================================
+    */
+
+    function formatMoney(
+        value
+    ) {
 
         return Number(
             value || 0
         ).toLocaleString(
+
             "en-IN",
+
             {
+
                 minimumFractionDigits:
                     2,
 
                 maximumFractionDigits:
                     2
+
             }
+
         );
 
     }
@@ -463,11 +501,13 @@ function printInvoice() {
 
     /*
     ==================================================
-    FORMAT DATE
+    DATE FORMAT
     ==================================================
     */
 
-    function formatDate(value) {
+    function formatDate(
+        value
+    ) {
 
         if (!value) {
 
@@ -492,8 +532,11 @@ function printInvoice() {
 
 
         return date.toLocaleDateString(
+
             "en-IN",
+
             {
+
                 day:
                     "2-digit",
 
@@ -502,7 +545,9 @@ function printInvoice() {
 
                 year:
                     "numeric"
+
             }
+
         );
 
     }
@@ -510,15 +555,17 @@ function printInvoice() {
 
     /*
     ==================================================
-    FORMAT DATETIME
+    DATE + TIME FORMAT
     ==================================================
     */
 
-    function formatDateTime(value) {
+    function formatDateTime(
+        value
+    ) {
 
         if (!value) {
 
-            return "-";
+            return "Waiting";
 
         }
 
@@ -533,14 +580,17 @@ function printInvoice() {
             )
         ) {
 
-            return "-";
+            return "Waiting";
 
         }
 
 
         return date.toLocaleString(
+
             "en-IN",
+
             {
+
                 day:
                     "2-digit",
 
@@ -554,8 +604,13 @@ function printInvoice() {
                     "2-digit",
 
                 minute:
-                    "2-digit"
+                    "2-digit",
+
+                hour12:
+                    true
+
             }
+
         );
 
     }
@@ -567,7 +622,9 @@ function printInvoice() {
     ==================================================
     */
 
-    function getStatusLabel(status) {
+    function getStatusLabel(
+        status
+    ) {
 
         switch (
             String(
@@ -643,14 +700,11 @@ function printInvoice() {
 
     function StatusIcon() {
 
-        const status =
+        switch (
             String(
-                order?.status ||
-                ""
-            ).toUpperCase();
-
-
-        switch (status) {
+                order?.status || ""
+            ).toUpperCase()
+        ) {
 
             case "DELIVERED":
 
@@ -707,6 +761,8 @@ function printInvoice() {
     }
 
 
+
+
     /*
     ==================================================
     INVOICE AVAILABLE
@@ -722,233 +778,302 @@ function printInvoice() {
         );
 
 
-    /*
-    ==================================================
-    DELIVERY DATE
-    ==================================================
-    */
-
-    const deliveryDate =
-        order?.deliveredAt ||
-        order?.delivered_at ||
-        null;
-
-
-    /*
-    ==================================================
-    RETURN CALCULATION
-    ==================================================
-
-    IMPORTANT:
-
-    Return deadline = DELIVERY DATE + 7 DAYS
-
-    Not order date + 7 days.
-
-    ==================================================
-    */
-
-    const returnInfo =
-        useMemo(() => {
-
-            if (!order) {
-
-                return {
-
-                    eligible:
-                        false,
-
-                    expired:
-                        false,
-
-                    daysRemaining:
-                        0,
-
-                    deadline:
-                        null,
-
-                    deliveredAt:
-                        null
-
-                };
-
-            }
-
-
-            const status =
-                String(
-                    order.status ||
-                    ""
-                ).toUpperCase();
-
-
-            /*
-            ------------------------------------------
-            ONLY DELIVERED ORDER
-            ------------------------------------------
-            */
-
-            if (
-                status !==
-                "DELIVERED"
-            ) {
-
-                return {
-
-                    eligible:
-                        false,
-
-                    expired:
-                        false,
-
-                    daysRemaining:
-                        0,
-
-                    deadline:
-                        null,
-
-                    deliveredAt:
-                        null
-
-                };
-
-            }
-
-
-            /*
-            ------------------------------------------
-            DELIVERY DATE REQUIRED
-            ------------------------------------------
-            */
-
-            if (
-                !deliveryDate
-            ) {
-
-                return {
-
-                    eligible:
-                        false,
-
-                    expired:
-                        false,
-
-                    daysRemaining:
-                        0,
-
-                    deadline:
-                        null,
-
-                    deliveredAt:
-                        null
-
-                };
-
-            }
-
-
-            const delivered =
-                new Date(
-                    deliveryDate
-                );
-
-
-            if (
-                Number.isNaN(
-                    delivered.getTime()
-                )
-            ) {
-
-                return {
-
-                    eligible:
-                        false,
-
-                    expired:
-                        false,
-
-                    daysRemaining:
-                        0,
-
-                    deadline:
-                        null,
-
-                    deliveredAt:
-                        null
-
-                };
-
-            }
-
-
-            /*
-            ------------------------------------------
-            DELIVERY DATE + 7 DAYS
-            ------------------------------------------
-            */
-
-            const deadline =
-                new Date(
-                    delivered
-                );
-
-
-            deadline.setDate(
-                deadline.getDate() +
-                RETURN_WINDOW_DAYS
-            );
-
-
-            const now =
-                new Date();
-
-
-            const remainingMilliseconds =
-                deadline.getTime() -
-                now.getTime();
-
-
-            const expired =
-                remainingMilliseconds <=
-                0;
-
-
-            const daysRemaining =
-                expired
-                    ? 0
-                    : Math.ceil(
-
-                        remainingMilliseconds /
-                        (
-                            1000 *
-                            60 *
-                            60 *
-                            24
-                        )
-
-                    );
-
+ /*
+==================================================
+RETURN CALCULATION
+==================================================
+
+RULES:
+
+1. Return is available ONLY after DELIVERED.
+2. Delivery timestamp must exist.
+3. Return window = exactly 7 × 24 hours.
+4. After deadline, return option disappears.
+5. No "expired" return card will be displayed.
+==================================================
+*/
+
+const returnInfo = useMemo(
+    () => {
+
+        /*
+        ==========================================
+        NO ORDER
+        ==========================================
+        */
+
+        if (!order) {
 
             return {
 
-                eligible:
-                    !expired,
+                eligible: false,
 
-                expired,
+                expired: false,
 
-                daysRemaining,
+                daysRemaining: 0,
+
+                deadline: null,
+
+                deliveredAt: null
+
+            };
+
+        }
+
+
+        /*
+        ==========================================
+        CURRENT ORDER STATUS
+        ==========================================
+        */
+
+        const status =
+            String(
+                order.status || ""
+            ).toUpperCase();
+
+
+        /*
+        ==========================================
+        RETURN IS POSSIBLE ONLY AFTER DELIVERY
+        ==========================================
+        */
+
+        if (
+            status !== "DELIVERED"
+        ) {
+
+            return {
+
+                eligible: false,
+
+                expired: false,
+
+                daysRemaining: 0,
+
+                deadline: null,
+
+                deliveredAt: null
+
+            };
+
+        }
+
+
+        /*
+        ==========================================
+        GET DELIVERY TIMESTAMP
+        ==========================================
+        */
+
+        const deliveredAt =
+            order.deliveredAt ||
+            order.delivered_at;
+
+
+        /*
+        ==========================================
+        DELIVERY DATE NOT AVAILABLE
+        ==========================================
+        */
+
+        if (
+            !deliveredAt
+        ) {
+
+            return {
+
+                eligible: false,
+
+                expired: false,
+
+                daysRemaining: 0,
+
+                deadline: null,
+
+                deliveredAt: null
+
+            };
+
+        }
+
+
+        /*
+        ==========================================
+        CREATE DELIVERY DATE
+        ==========================================
+        */
+
+        const deliveredDate =
+            new Date(
+                deliveredAt
+            );
+
+
+        /*
+        ==========================================
+        INVALID DELIVERY DATE
+        ==========================================
+        */
+
+        if (
+            Number.isNaN(
+                deliveredDate.getTime()
+            )
+        ) {
+
+            return {
+
+                eligible: false,
+
+                expired: false,
+
+                daysRemaining: 0,
+
+                deadline: null,
+
+                deliveredAt: null
+
+            };
+
+        }
+
+
+        /*
+        ==========================================
+        CALCULATE EXACT 7 DAY DEADLINE
+        ==========================================
+
+        Example:
+
+        Delivered:
+        22 Aug 2026 05:00 PM
+
+        Deadline:
+        29 Aug 2026 05:00 PM
+        ==========================================
+        */
+
+        const deadline =
+            new Date(
+                deliveredDate.getTime()
+                +
+                (
+                    RETURN_WINDOW_DAYS
+                    *
+                    24
+                    *
+                    60
+                    *
+                    60
+                    *
+                    1000
+                )
+            );
+
+
+        /*
+        ==========================================
+        CURRENT DATE/TIME
+        ==========================================
+        */
+
+        const now =
+            new Date();
+
+
+        /*
+        ==========================================
+        REMAINING TIME
+        ==========================================
+        */
+
+        const remainingMilliseconds =
+            deadline.getTime()
+            -
+            now.getTime();
+
+
+        /*
+        ==========================================
+        RETURN WINDOW EXPIRED
+        ==========================================
+        */
+
+        if (
+            remainingMilliseconds <= 0
+        ) {
+
+            return {
+
+                eligible: false,
+
+                expired: true,
+
+                daysRemaining: 0,
 
                 deadline,
 
                 deliveredAt:
-                    delivered
+                    deliveredDate
 
             };
 
-        }, [
-            order,
-            deliveryDate
-        ]);
+        }
+
+
+        /*
+        ==========================================
+        DAYS REMAINING
+        ==========================================
+        */
+
+        const daysRemaining =
+            Math.ceil(
+
+                remainingMilliseconds
+                /
+                (
+                    24
+                    *
+                    60
+                    *
+                    60
+                    *
+                    1000
+                )
+
+            );
+
+
+        /*
+        ==========================================
+        RETURN RESULT
+        ==========================================
+        */
+
+        return {
+
+            eligible: true,
+
+            expired: false,
+
+            daysRemaining,
+
+            deadline,
+
+            deliveredAt:
+                deliveredDate
+
+        };
+
+    },
+
+    [
+        order
+    ]
+
+);
 
 
     /*
@@ -980,12 +1105,20 @@ function printInvoice() {
         }
 
 
+        /*
+        ==========================================
+        CHECK RETURN WINDOW
+        ==========================================
+        */
+
         if (
             !returnInfo.eligible
         ) {
 
             setReturnError(
+
                 "The 7-day return window has expired."
+
             );
 
             return;
@@ -993,14 +1126,20 @@ function printInvoice() {
         }
 
 
-        const reason =
-            returnReason.trim();
+        /*
+        ==========================================
+        CHECK REASON
+        ==========================================
+        */
 
-
-        if (!reason) {
+        if (
+            !returnReason.trim()
+        ) {
 
             setReturnError(
+
                 "Please enter the reason for return."
+
             );
 
             return;
@@ -1009,12 +1148,13 @@ function printInvoice() {
 
 
         if (
-            reason.length <
-            10
+            returnReason.trim().length < 10
         ) {
 
             setReturnError(
-                "Please provide at least 10 characters describing the reason."
+
+                "Please provide a little more detail about the return reason."
+
             );
 
             return;
@@ -1024,9 +1164,7 @@ function printInvoice() {
 
         try {
 
-            setSubmittingReturn(
-                true
-            );
+            setSubmittingReturn(true);
 
             setReturnError("");
 
@@ -1039,7 +1177,10 @@ function printInvoice() {
                     )}/return`,
 
                     {
-                        reason
+
+                        reason:
+                            returnReason.trim()
+
                     }
 
                 );
@@ -1060,9 +1201,9 @@ function printInvoice() {
 
 
             /*
-            ------------------------------------------
-            UPDATE UI
-            ------------------------------------------
+            ==========================================
+            UPDATE ORDER STATUS
+            ==========================================
             */
 
             setOrder(
@@ -1077,6 +1218,12 @@ function printInvoice() {
             );
 
 
+            /*
+            ==========================================
+            SAVE RETURN REQUEST LOCALLY
+            ==========================================
+            */
+
             setReturnRequest({
 
                 id:
@@ -1087,7 +1234,8 @@ function printInvoice() {
                 reference_no:
                     order.referenceNo,
 
-                reason,
+                reason:
+                    returnReason.trim(),
 
                 status:
                     "RETURN_REQUESTED",
@@ -1100,31 +1248,17 @@ function printInvoice() {
 
             setReturnReason("");
 
-            setShowReturnModal(
-                false
-            );
+            setShowReturnModal(false);
 
 
-        } catch (error) {
+        }
+
+        catch (error) {
 
             console.error(
                 "SUBMIT RETURN ERROR:",
                 error
             );
-
-
-            if (
-                error.response?.status ===
-                401
-            ) {
-
-                navigate(
-                    `/login?redirect=/profile/orders/${referenceNo}`
-                );
-
-                return;
-
-            }
 
 
             setReturnError(
@@ -1139,15 +1273,16 @@ function printInvoice() {
 
             );
 
-        } finally {
+        }
 
-            setSubmittingReturn(
-                false
-            );
+        finally {
+
+            setSubmittingReturn(false);
 
         }
 
     }
+
 
 
     /*
@@ -1245,11 +1380,134 @@ function printInvoice() {
     }
 
 
+    
     /*
     ==================================================
-    MAIN UI
+    TIMELINE DATA
     ==================================================
     */
+
+const timeline = [
+
+    {
+        key: "placed",
+
+        label: "Order Placed",
+
+        timestamp:
+            order.createdAt ||
+            order.created_at,
+
+        icon:
+            <CheckCircle
+                size={15}
+            />
+    },
+
+
+    {
+        key: "accepted",
+
+        label: "Seller Accepted",
+
+        timestamp:
+            order.sellerAcceptedAt ||
+            order.seller_accepted_at,
+
+        icon:
+            <CheckCircle
+                size={15}
+            />
+    },
+
+
+    {
+        key: "processing",
+
+        label: "Processing",
+
+        timestamp:
+            order.processingAt ||
+            order.processing_at,
+
+        icon:
+            <Package
+                size={15}
+            />
+    },
+
+
+    {
+        key: "shipped",
+
+        label: "Shipped",
+
+        timestamp:
+            order.shippedAt ||
+            order.shipped_at,
+
+        icon:
+            <Truck
+                size={15}
+            />
+    },
+
+
+    {
+        key: "delivered",
+
+        label: "Delivered",
+
+        timestamp:
+            order.deliveredAt ||
+            order.delivered_at,
+
+        icon:
+            <CheckCircle
+                size={15}
+            />
+    }
+
+];
+    /*
+    ==================================================
+    GET CURRENT TIMELINE INDEX
+    ==================================================
+    */
+
+  const currentTimelineIndex = (() => {
+    const status = String(
+        order.status || ""
+    ).toUpperCase();
+
+    const index = TIMELINE_STATUSES.indexOf(status);
+
+    if (index >= 0) {
+        return index;
+    }
+
+    switch (status) {
+        case "REJECTED":
+        case "CANCELLED":
+            return 0;
+
+        case "RETURN_REQUESTED":
+        case "RETURN_ACCEPTED":
+        case "RETURN_REJECTED":
+            return TIMELINE_STATUSES.indexOf("DELIVERED");
+
+        default:
+            return 0;
+    }
+})();
+
+    /*
+    ==================================================
+    RENDER
+    ==================================================
+    */
+
+
 
     return (
 
@@ -1410,7 +1668,7 @@ function printInvoice() {
                             </h2>
 
                             <p>
-                                Current status of your order
+                                Complete order tracking
                             </p>
 
                         </div>
@@ -1422,140 +1680,71 @@ function printInvoice() {
                         className="order-status-timeline"
                     >
 
-                        <TimelineStep
-                            label="Order Placed"
-                            active
-                            icon={
-                                <CheckCircle
-                                    size={15}
-                                />
+                        {timeline.map(
+                            (
+                                step,
+                                index
+                            ) => {
+
+                                const active =
+                                    index <=
+                                    currentTimelineIndex;
+
+
+                                return (
+
+                                    <div
+                                        className="timeline-wrapper"
+                                        key={
+                                            step.key
+                                        }
+                                    >
+
+                                        <TimelineStep
+                                            label={
+                                                step.label
+                                            }
+
+                                            active={
+                                                active
+                                            }
+
+                                            icon={
+                                                step.icon
+                                            }
+
+                                            timestamp={
+                                                step.timestamp
+                                            }
+
+                                            formatDateTime={
+                                                formatDateTime
+                                            }
+                                        />
+
+
+                                        {index <
+                                        timeline.length -
+                                            1 && (
+
+                                            <TimelineLine
+                                                active={
+                                                    index <
+                                                    currentTimelineIndex
+                                                }
+                                            />
+
+                                        )}
+
+                                    </div>
+
+                                );
+
                             }
-                        />
-
-
-                        <TimelineLine
-                            active={[
-                                "ACCEPTED",
-                                "PROCESSING",
-                                "SHIPPED",
-                                "DELIVERED",
-                                "RETURN_REQUESTED",
-                                "RETURN_ACCEPTED",
-                                "RETURN_REJECTED"
-                            ].includes(
-                                order.status
-                            )}
-                        />
-
-
-                        <TimelineStep
-                            label="Seller Accepted"
-                            active={[
-                                "ACCEPTED",
-                                "PROCESSING",
-                                "SHIPPED",
-                                "DELIVERED",
-                                "RETURN_REQUESTED",
-                                "RETURN_ACCEPTED",
-                                "RETURN_REJECTED"
-                            ].includes(
-                                order.status
-                            )}
-                            icon={
-                                <CheckCircle
-                                    size={15}
-                                />
-                            }
-                        />
-
-
-                        <TimelineLine
-                            active={[
-                                "PROCESSING",
-                                "SHIPPED",
-                                "DELIVERED",
-                                "RETURN_REQUESTED",
-                                "RETURN_ACCEPTED",
-                                "RETURN_REJECTED"
-                            ].includes(
-                                order.status
-                            )}
-                        />
-
-
-                        <TimelineStep
-                            label="Processing"
-                            active={[
-                                "PROCESSING",
-                                "SHIPPED",
-                                "DELIVERED",
-                                "RETURN_REQUESTED",
-                                "RETURN_ACCEPTED",
-                                "RETURN_REJECTED"
-                            ].includes(
-                                order.status
-                            )}
-                            icon={
-                                <Package
-                                    size={15}
-                                />
-                            }
-                        />
-
-
-                        <TimelineLine
-                            active={[
-                                "SHIPPED",
-                                "DELIVERED"
-                            ].includes(
-                                order.status
-                            )}
-                        />
-
-
-                        <TimelineStep
-                            label="Shipped"
-                            active={[
-                                "SHIPPED",
-                                "DELIVERED"
-                            ].includes(
-                                order.status
-                            )}
-                            icon={
-                                <Truck
-                                    size={15}
-                                />
-                            }
-                        />
-
-
-                        <TimelineLine
-                            active={[
-                                "DELIVERED"
-                            ].includes(
-                                order.status
-                            )}
-                        />
-
-
-                        <TimelineStep
-                            label="Delivered"
-                            active={[
-                                "DELIVERED",
-                                "RETURN_REQUESTED",
-                                "RETURN_ACCEPTED",
-                                "RETURN_REJECTED"
-                            ].includes(
-                                order.status
-                            )}
-                            icon={
-                                <CheckCircle
-                                    size={15}
-                                />
-                            }
-                        />
+                        )}
 
                     </div>
+
 
                 </section>
 
@@ -1590,21 +1779,16 @@ function printInvoice() {
                             </h2>
 
 
-                            {invoiceAvailable ? (
+                            <p>
 
-                                <p>
-                                    Your invoice is ready.
-                                    You can view and save it as PDF.
-                                </p>
+                                {invoiceAvailable
 
-                            ) : (
+                                    ? "Your invoice is ready to download."
 
-                                <p>
-                                    Invoice will be available
-                                    after the order is shipped.
-                                </p>
+                                    : "Invoice can be downloaded after the order is shipped."
+                                }
 
-                            )}
+                            </p>
 
                         </div>
 
@@ -2090,277 +2274,283 @@ function printInvoice() {
                 </section>
 
 
-                {/* =========================================
-                    RETURN
-                ========================================= */}
+                {/* =================================================
+    RETURN SECTION
+================================================= */}
 
-                <section
-                    className={`order-return-card ${
-                        returnAlreadyRequested
-                            ? "return-existing"
-                            : ""
-                    }`}
+{/*
+==================================================
+EXISTING RETURN REQUEST
+==================================================
+
+If a return request already exists, show its
+status even though the normal 7-day button is
+no longer available.
+==================================================
+*/}
+
+{returnAlreadyRequested ? (
+
+    <section
+        className="order-return-card return-existing"
+    >
+
+        <div
+            className="return-card-main"
+        >
+
+            <div
+                className="return-icon"
+            >
+
+                <RotateCcw
+                    size={22}
+                />
+
+            </div>
+
+
+            <div
+                className="return-card-content"
+            >
+
+                <span
+                    className="return-label"
                 >
+                    RETURN REQUEST
+                </span>
+
+
+                <h2>
+                    Return Request
+                </h2>
+
+
+                <p>
+
+                    Your return request is currently:
+
+                    {" "}
+
+                    <strong>
+
+                        {
+                            getStatusLabel(
+                                returnRequest?.status
+                            )
+                        }
+
+                    </strong>
+
+                </p>
+
+
+                {returnRequest?.reason && (
 
                     <div
-                        className="return-card-main"
+                        className="return-reason-display"
                     >
 
-                        <div
-                            className="return-icon"
-                        >
+                        <strong>
+                            Your reason
+                        </strong>
 
-                            <RotateCcw
-                                size={22}
-                            />
+                        <span>
 
-                        </div>
+                            {
+                                returnRequest.reason
+                            }
 
-
-                        <div
-                            className="return-card-content"
-                        >
-
-                            <span
-                                className="return-label"
-                            >
-                                RETURN POLICY
-                            </span>
-
-
-                            <h2>
-                                {returnAlreadyRequested
-                                    ? "Return Request"
-                                    : "Need to return this order?"}
-                            </h2>
-
-
-                            {returnAlreadyRequested ? (
-
-                                <>
-
-                                    <p>
-
-                                        Return status:
-
-                                        {" "}
-
-                                        <strong>
-                                            {
-                                                getStatusLabel(
-                                                    returnRequest.status
-                                                )
-                                            }
-                                        </strong>
-
-                                    </p>
-
-
-                                    {returnRequest.requested_at && (
-
-                                        <p>
-
-                                            Requested on:{" "}
-
-                                            <strong>
-                                                {
-                                                    formatDateTime(
-                                                        returnRequest.requested_at
-                                                    )
-                                                }
-                                            </strong>
-
-                                        </p>
-
-                                    )}
-
-
-                                    {returnRequest.reason && (
-
-                                        <div
-                                            className="return-reason-display"
-                                        >
-
-                                            <strong>
-                                                Your reason
-                                            </strong>
-
-                                            <span>
-                                                {
-                                                    returnRequest.reason
-                                                }
-                                            </span>
-
-                                        </div>
-
-                                    )}
-
-
-                                    {returnRequest.seller_response && (
-
-                                        <div
-                                            className="return-response-display"
-                                        >
-
-                                            <strong>
-                                                Seller response
-                                            </strong>
-
-                                            <span>
-                                                {
-                                                    returnRequest.seller_response
-                                                }
-                                            </span>
-
-                                        </div>
-
-                                    )}
-
-                                </>
-
-                            ) : (
-
-                                <>
-
-                                    {String(
-                                        order.status ||
-                                        ""
-                                    ).toUpperCase() ===
-                                    "DELIVERED" ? (
-
-                                        returnInfo.eligible ? (
-
-                                            <p>
-
-                                                You can request a return
-                                                within{" "}
-
-                                                <strong>
-                                                    {
-                                                        returnInfo.daysRemaining
-                                                    } day
-                                                    {
-                                                        returnInfo.daysRemaining !== 1
-                                                            ? "s"
-                                                            : ""
-                                                    }
-                                                </strong>
-                                                .
-
-                                                <br />
-
-                                                Delivered on:{" "}
-
-                                                <strong>
-                                                    {
-                                                        formatDate(
-                                                            returnInfo.deliveredAt
-                                                        )
-                                                    }
-                                                </strong>
-
-                                                <br />
-
-                                                Return deadline:{" "}
-
-                                                <strong>
-                                                    {
-                                                        formatDate(
-                                                            returnInfo.deadline
-                                                        )
-                                                    }
-                                                </strong>
-
-                                            </p>
-
-                                        ) : (
-
-                                            <p
-                                                className="return-expired-text"
-                                            >
-
-                                                The{" "}
-                                                {
-                                                    RETURN_WINDOW_DAYS
-                                                }-day return window
-                                                has expired.
-
-                                            </p>
-
-                                        )
-
-                                    ) : (
-
-                                        <p>
-
-                                            Return will become available
-                                            after the order is delivered.
-
-                                        </p>
-
-                                    )}
-
-                                </>
-
-                            )}
-
-                        </div>
+                        </span>
 
                     </div>
 
-
-                    {!returnAlreadyRequested &&
-
-                    String(
-                        order.status ||
-                        ""
-                    ).toUpperCase() ===
-                        "DELIVERED" &&
-
-                    returnInfo.eligible && (
-
-                        <button
-                            type="button"
-                            className="return-request-button"
-                            onClick={() => {
-
-                                setReturnError("");
-
-                                setReturnReason("");
-
-                                setShowReturnModal(
-                                    true
-                                );
-
-                            }}
-                        >
-
-                            <RotateCcw
-                                size={17}
-                            />
-
-                            Request Return
-
-                        </button>
-
-                    )}
-
-                </section>
+                )}
 
 
-                {/* =========================================
-                    CANCEL
-                ========================================= */}
+                {returnRequest?.seller_response && (
 
-                {[
-                    "PENDING_SELLER_ACCEPTANCE",
-                    "ACCEPTED",
-                    "PROCESSING"
-                ].includes(
-                    String(
-                        order.status ||
-                        ""
-                    ).toUpperCase()
+                    <div
+                        className="return-response-display"
+                    >
+
+                        <strong>
+                            Seller response
+                        </strong>
+
+                        <span>
+
+                            {
+                                returnRequest.seller_response
+                            }
+
+                        </span>
+
+                    </div>
+
+                )}
+
+            </div>
+
+        </div>
+
+    </section>
+
+) : (
+
+    /*
+    ==================================================
+    NO EXISTING RETURN REQUEST
+    ==================================================
+    */
+
+    order.status === "DELIVERED" &&
+    returnInfo.eligible && (
+
+        <section
+            className="order-return-card"
+        >
+
+            <div
+                className="return-card-main"
+            >
+
+                <div
+                    className="return-icon"
+                >
+
+                    <RotateCcw
+                        size={22}
+                    />
+
+                </div>
+
+
+                <div
+                    className="return-card-content"
+                >
+
+                    <span
+                        className="return-label"
+                    >
+                        RETURN POLICY
+                    </span>
+
+
+                    <h2>
+                        Need to return this order?
+                    </h2>
+
+
+                    <p>
+
+                        This order was delivered on:
+
+                        {" "}
+
+                        <strong>
+
+                            {
+                                formatDateTime(
+                                    returnInfo.deliveredAt
+                                )
+                            }
+
+                        </strong>
+
+                        <br />
+
+                        You can request a return
+                        within{" "}
+
+                        <strong>
+
+                            {
+                                returnInfo.daysRemaining
+                            }
+
+                            {" "}
+
+                            {
+                                returnInfo.daysRemaining === 1
+                                    ? "day"
+                                    : "days"
+                            }
+
+                        </strong>
+
+                        .
+
+                        <br />
+
+                        Return deadline:
+
+                        {" "}
+
+                        <strong>
+
+                            {
+                                formatDateTime(
+                                    returnInfo.deadline
+                                )
+                            }
+
+                        </strong>
+
+                    </p>
+
+                </div>
+
+            </div>
+
+
+            {/* ==========================================
+                REQUEST RETURN BUTTON
+            ========================================== */}
+
+            <button
+                type="button"
+                className="return-request-button"
+                onClick={() => {
+
+                    setReturnError("");
+
+                    setShowReturnModal(
+                        true
+                    );
+
+                }}
+            >
+
+                <RotateCcw
+                    size={17}
+                />
+
+                Request Return
+
+            </button>
+
+        </section>
+
+    )
+
+)}
+
+{/* =================================================
+                    CANCEL ORDER
+                ================================================= */}
+
+                {(
+
+                    order.status ===
+                        "PENDING_SELLER_ACCEPTANCE" ||
+
+                    order.status ===
+                        "ACCEPTED" ||
+
+                    order.status ===
+                        "PROCESSING"
+
                 ) && (
 
                     <div
@@ -2417,6 +2607,7 @@ function printInvoice() {
                 )}
 
             </main>
+
 
 
             {/* =====================================================
@@ -2891,6 +3082,7 @@ function printInvoice() {
 }
 
 
+
 /*
 ==================================================
 TIMELINE STEP
@@ -2898,9 +3090,17 @@ TIMELINE STEP
 */
 
 function TimelineStep({
+
     label,
+
     active,
-    icon
+
+    icon,
+
+    timestamp,
+
+    formatDateTime
+
 }) {
 
     return (
@@ -2926,11 +3126,29 @@ function TimelineStep({
                 {label}
             </span>
 
+
+            <small
+                className="timeline-time"
+            >
+
+                {timestamp
+
+                    ? formatDateTime(
+                        timestamp
+                    )
+
+                    : "Waiting"
+
+                }
+
+            </small>
+
         </div>
 
     );
 
 }
+
 
 
 /*

@@ -232,11 +232,9 @@
     transform: translateY(-2px);
 
     border-color:
-        color-mix(
-            in srgb,
-            var(--primary) 25%,
+        
             #e2e8f0
-        );
+        ;
 
     color: var(--primary);
 
@@ -311,30 +309,23 @@
     justify-content: center;
 
     border: 1px solid
-        color-mix(
-            in srgb,
-            var(--primary) 15%,
             #e2e8f0
-        );
+        ;
 
     border-radius: 8px;
 
     background:
-        color-mix(
-            in srgb,
-            var(--primary) 6%,
+        
             white
-        );
+        ;
 
     color: var(--primary);
 
     box-shadow:
         0 5px 14px
-        color-mix(
-            in srgb,
-            var(--primary) 7%,
+        
             transparent
-        );
+        ;
 }
 .register-card {
     width: 100%;
@@ -409,31 +400,24 @@
     justify-content: center;
 
     border:
-        1px solid
-        color-mix(
-            in srgb,
-            var(--primary) 12%,
+        1px solid 
             #e2e8f0
-        );
+        ;
 
     border-radius: 15px;
 
     background:
-        color-mix(
-            in srgb,
-            var(--primary) 7%,
+        
             white
-        );
+        ;
 
     color: var(--primary);
 
     box-shadow:
         0 8px 22px
-        color-mix(
-            in srgb,
-            var(--primary) 9%,
+    
             transparent
-        );
+    ;
 
     transition:
         color 0.35s ease,
@@ -554,11 +538,9 @@
     transform: translateY(-2px);
 
     border-color:
-        color-mix(
-            in srgb,
-            var(--primary) 32%,
+        
             #e2e8f0
-        );
+        ;
 
     box-shadow:
         0 13px 30px
@@ -575,26 +557,19 @@
     border-color: var(--primary);
 
     background:
-        color-mix(
-            in srgb,
-            var(--primary) 4.5%,
+        
             white
-        );
+        ;
 
     box-shadow:
         0 0 0 1px
-        color-mix(
-            in srgb,
-            var(--primary) 22%,
-            transparent
-        ),
+    transparent
+        ,
 
         0 12px 30px
-        color-mix(
-            in srgb,
-            var(--primary) 10%,
+        
             transparent
-        );
+        ;
 }
 
 
@@ -689,11 +664,9 @@
 
     box-shadow:
         0 5px 14px
-        color-mix(
-            in srgb,
-            var(--primary) 22%,
+        
             transparent
-        );
+        ;
 }
 
 .gender-wrapper {
@@ -775,26 +748,17 @@
     border-color: var(--primary);
 
     background:
-        color-mix(
-            in srgb,
-            var(--primary) 4%,
+        
             white
-        );
+        
 
-    box-shadow:
+    box-shadow 
         0 0 0 1px
-        color-mix(
-            in srgb,
-            var(--primary) 20%,
+        
             transparent
-        ),
+        ;
 
-        0 10px 25px
-        color-mix(
-            in srgb,
-            var(--primary) 9%,
-            transparent
-        );
+        
 }
 
 .gender-symbol {
@@ -945,11 +909,9 @@
 
     box-shadow:
         0 0 0 3px
-        color-mix(
-            in srgb,
-            var(--primary) 9%,
+        
             transparent
-        );
+        ;
 }
 
 
@@ -1135,20 +1097,16 @@
 
     border:
         1px solid
-        color-mix(
-            in srgb,
-            var(--primary) 15%,
+        c
             #e2e8f0
-        );
+        ;
 
     border-radius: 6px;
 
     background:
-        color-mix(
-            in srgb,
-            var(--primary) 7%,
+    
             white
-        );
+    ;
 
     color: var(--primary);
 }
@@ -1205,11 +1163,9 @@
 
     box-shadow:
         0 10px 26px
-        color-mix(
-            in srgb,
-            var(--primary) 20%,
+        
             transparent
-        );
+        ;
 
     transition:
         transform 0.25s ease,
@@ -1225,11 +1181,9 @@
 
     box-shadow:
         0 16px 35px
-        color-mix(
-            in srgb,
-            var(--primary) 25%,
+        
             transparent
-        );
+        ;
 }
 
 
@@ -1238,11 +1192,9 @@
 
     box-shadow:
         0 6px 16px
-        color-mix(
-            in srgb,
-            var(--primary) 18%,
+        
             transparent
-        );
+        ;
 }
 
 
@@ -1251,18 +1203,14 @@
 
     box-shadow:
         0 0 0 3px
-        color-mix(
-            in srgb,
-            var(--primary) 14%,
+        
             transparent
-        ),
+        ,
 
         0 12px 30px
-        color-mix(
-            in srgb,
-            var(--primary) 20%,
+        
             transparent
-        );
+        ;
 }
 
 
@@ -1355,18 +1303,14 @@
 
 .login-link button:hover {
     border-color:
-        color-mix(
-            in srgb,
-            var(--primary) 12%,
+        
             transparent
-        );
+        ;
 
     background:
-        color-mix(
-            in srgb,
-            var(--primary) 6%,
+        
             transparent
-        );
+        ;
 
     transform: translateY(-1px);
 }

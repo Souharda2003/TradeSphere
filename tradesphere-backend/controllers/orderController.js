@@ -1726,15 +1726,35 @@ async function updateSellerOrderStatus(
 
     try {
 
+        /*
+        ==========================================
+        GET SELLER ID
+        ==========================================
+        */
+
         const sellerId =
             req.user?.userId ||
             req.user?.id ||
             req.user?.user_id;
 
+
+        /*
+        ==========================================
+        GET ORDER ID
+        ==========================================
+        */
+
         const orderId =
             Number(
                 req.params.orderId
             );
+
+
+        /*
+        ==========================================
+        GET REQUESTED STATUS
+        ==========================================
+        */
 
         const {
             status
@@ -1743,7 +1763,7 @@ async function updateSellerOrderStatus(
 
         /*
         ==========================================
-        AUTHENTICATION
+        AUTHENTICATION CHECK
         ==========================================
         */
 
@@ -1763,7 +1783,7 @@ async function updateSellerOrderStatus(
 
         /*
         ==========================================
-        VALID ORDER ID
+        ORDER ID VALIDATION
         ==========================================
         */
 
@@ -1786,7 +1806,7 @@ async function updateSellerOrderStatus(
 
         /*
         ==========================================
-        VALID STATUS
+        ALLOWED STATUS
         ==========================================
         */
 
@@ -1818,6 +1838,12 @@ async function updateSellerOrderStatus(
 
         }
 
+
+        /*
+        ==========================================
+        START TRANSACTION
+        ==========================================
+        */
 
         await connection.beginTransaction();
 
@@ -1856,16 +1882,24 @@ async function updateSellerOrderStatus(
             LIMIT 1
 
             FOR UPDATE
-
             `,
 
             [
+
                 orderId,
+
                 sellerId
+
             ]
 
         );
 
+
+        /*
+        ==========================================
+        ORDER NOT FOUND
+        ==========================================
+        */
 
         if (
             orders.length === 0
@@ -1884,22 +1918,37 @@ async function updateSellerOrderStatus(
 
         /*
         ==========================================
-        VALID STATUS TRANSITION
+        VALID STATUS TRANSITIONS
+        ==========================================
+
+        ACCEPTED
+            ↓
+        PROCESSING
+            ↓
+        SHIPPED
+            ↓
+        DELIVERED
         ==========================================
         */
 
         const validTransitions = {
 
             ACCEPTED: [
+
                 "PROCESSING"
+
             ],
 
             PROCESSING: [
+
                 "SHIPPED"
+
             ],
 
             SHIPPED: [
+
                 "DELIVERED"
+
             ]
 
         };
@@ -1946,11 +1995,12 @@ async function updateSellerOrderStatus(
             FROM order_items
 
             WHERE order_id = ?
-
             `,
 
             [
+
                 orderId
+
             ]
 
         );
@@ -1958,21 +2008,18 @@ async function updateSellerOrderStatus(
 
         /*
         ==========================================
-        WHEN SHIPPED
+        SHIPPED
         ==========================================
 
-        At the time of order creation:
+        When the order is created:
 
-        reserved_quantity was increased.
+            reserved_quantity increases.
 
-        When order is shipped:
+        When order becomes SHIPPED:
 
-        reserved stock becomes actual sold stock.
+            actual quantity decreases
+            reserved_quantity decreases
 
-        Therefore:
-
-        quantity decreases
-        reserved_quantity decreases
         ==========================================
         */
 
@@ -1981,7 +2028,8 @@ async function updateSellerOrderStatus(
         ) {
 
             for (
-                const item of items
+                const item
+                of items
             ) {
 
                 const quantity =
@@ -2016,7 +2064,6 @@ async function updateSellerOrderStatus(
                     AND seller_id = ?
 
                     AND reserved_quantity >= ?
-
                     `,
 
                     [
@@ -2035,6 +2082,12 @@ async function updateSellerOrderStatus(
 
                 );
 
+
+                /*
+                ==========================================
+                STOCK UPDATE FAILED
+                ==========================================
+                */
 
                 if (
                     stockResult.affectedRows !== 1
@@ -2055,6 +2108,48 @@ async function updateSellerOrderStatus(
 
         /*
         ==========================================
+        DETERMINE MILESTONE TIMESTAMP
+        ==========================================
+
+        PROCESSING → processing_at
+        SHIPPED    → shipped_at
+        DELIVERED  → delivered_at
+        ==========================================
+        */
+
+        let milestoneColumn = "";
+
+
+        if (
+            status === "PROCESSING"
+        ) {
+
+            milestoneColumn =
+                "processing_at = NOW()";
+
+        }
+
+        else if (
+            status === "SHIPPED"
+        ) {
+
+            milestoneColumn =
+                "shipped_at = NOW()";
+
+        }
+
+        else if (
+            status === "DELIVERED"
+        ) {
+
+            milestoneColumn =
+                "delivered_at = NOW()";
+
+        }
+
+
+        /*
+        ==========================================
         UPDATE ORDER STATUS
         ==========================================
         */
@@ -2068,12 +2163,13 @@ async function updateSellerOrderStatus(
 
                 status = ?,
 
+                ${milestoneColumn},
+
                 updated_at = NOW()
 
             WHERE id = ?
 
             AND seller_id = ?
-
             `,
 
             [
@@ -2096,61 +2192,80 @@ async function updateSellerOrderStatus(
         */
 
         let notificationType;
+
         let notificationTitle;
+
         let notificationMessage;
 
+/*
+==================================================
+DETERMINE MILESTONE TIMESTAMP
+==================================================
 
-        if (
-            status === "PROCESSING"
-        ) {
+PROCESSING → processing_at
+SHIPPED    → shipped_at
+DELIVERED  → delivered_at
+==================================================
+*/
 
-            notificationType =
-                "ORDER_PROCESSING";
+let timestampColumn = "";
 
-            notificationTitle =
-                "Order Processing";
+if (status === "PROCESSING") {
 
-            notificationMessage =
-                `Your order ${order.reference_no} is now being processed by the seller.`;
+    timestampColumn = `
+        processing_at = COALESCE(processing_at, NOW())
+    `;
 
-        }
+}
 
+else if (status === "SHIPPED") {
 
-        else if (
-            status === "SHIPPED"
-        ) {
+    timestampColumn = `
+        shipped_at = COALESCE(shipped_at, NOW())
+    `;
 
-            notificationType =
-                "ORDER_SHIPPED";
+}
 
-            notificationTitle =
-                "Order Shipped";
+else if (status === "DELIVERED") {
 
-            notificationMessage =
-                `Your order ${order.reference_no} has been shipped.`;
+    timestampColumn = `
+        delivered_at = COALESCE(delivered_at, NOW())
+    `;
 
-        }
+}
+await connection.execute(
 
+    `
+    UPDATE orders
 
-        else if (
-            status === "DELIVERED"
-        ) {
+    SET
 
-            notificationType =
-                "ORDER_DELIVERED";
+        status = ?,
 
-            notificationTitle =
-                "Order Delivered";
+        ${timestampColumn},
 
-            notificationMessage =
-                `Your order ${order.reference_no} has been delivered successfully.`;
+        updated_at = NOW()
 
-        }
+    WHERE id = ?
 
+    AND seller_id = ?
 
+    `,
+
+    [
+
+        status,
+
+        orderId,
+
+        sellerId
+
+    ]
+
+);
         /*
         ==========================================
-        CUSTOMER NOTIFICATION
+        CREATE CUSTOMER NOTIFICATION
         ==========================================
         */
 
@@ -2194,7 +2309,6 @@ async function updateSellerOrderStatus(
 
                 NOW()
             )
-
             `,
 
             [
@@ -2216,12 +2330,18 @@ async function updateSellerOrderStatus(
         );
 
 
+        /*
+        ==========================================
+        COMMIT
+        ==========================================
+        */
+
         await connection.commit();
 
 
         /*
         ==========================================
-        SUCCESS
+        SUCCESS RESPONSE
         ==========================================
         */
 
@@ -2240,14 +2360,23 @@ async function updateSellerOrderStatus(
                 referenceNo:
                     order.reference_no,
 
-                status
+                status:
+                    status
 
             }
 
         });
 
 
-    } catch (error) {
+    }
+
+    catch (error) {
+
+        /*
+        ==========================================
+        ROLLBACK
+        ==========================================
+        */
 
         await connection.rollback();
 
@@ -2268,14 +2397,21 @@ async function updateSellerOrderStatus(
 
         });
 
+    }
 
-    } finally {
+    finally {
 
         connection.release();
 
     }
 
 }
+/*
+==================================================
+GET CUSTOMER ORDER DETAILS
+==================================================
+*/
+
 async function getOrderDetails(
     req,
     res
@@ -2285,7 +2421,7 @@ async function getOrderDetails(
 
         /*
         ==========================================
-        GET AUTHENTICATED CUSTOMER ID
+        GET CUSTOMER ID
         ==========================================
         */
 
@@ -2294,6 +2430,12 @@ async function getOrderDetails(
             req.user?.id ||
             req.user?.user_id;
 
+
+        /*
+        ==========================================
+        AUTHENTICATION
+        ==========================================
+        */
 
         if (!customerId) {
 
@@ -2311,7 +2453,7 @@ async function getOrderDetails(
 
         /*
         ==========================================
-        GET REFERENCE NUMBER FROM URL
+        GET REFERENCE NUMBER
         ==========================================
         */
 
@@ -2338,89 +2480,86 @@ async function getOrderDetails(
         ==========================================
         GET ORDER
         ==========================================
-        
-        IMPORTANT:
-        customer_id is also checked.
-
-        This prevents one customer from viewing
-        another customer's order by changing the URL.
         */
+const [
+    orders
+] = await pool.execute(
 
-        const [
-            orders
-        ] = await pool.execute(
+    `
+    SELECT
 
-            `
-            SELECT
+        o.id,
 
-                o.id,
+        o.reference_no,
 
-                o.reference_no,
+        o.customer_id,
 
-                o.customer_id,
+        o.seller_id,
 
-                o.seller_id,
+        o.subtotal,
 
-                o.subtotal,
+        o.delivery_charge,
 
-                o.delivery_charge,
+        o.total_amount,
 
-                o.total_amount,
+        o.status,
 
-                o.status,
+        o.customer_name,
 
-                o.customer_name,
+        o.customer_phone,
 
-                o.customer_phone,
+        o.customer_email,
 
-                o.customer_email,
+        o.delivery_address,
 
-                o.delivery_address,
+        o.delivery_city,
 
-                o.delivery_city,
+        o.delivery_state,
 
-                o.delivery_state,
+        o.delivery_pincode,
 
-                o.delivery_pincode,
+        o.otp_verified,
 
-                o.otp_verified,
+        o.seller_accepted_at,
 
-                o.seller_accepted_at,
+        o.processing_at,
 
-                o.cancelled_at,
+        o.shipped_at,
 
-                o.created_at,
+        o.cancelled_at,
 
-                o.updated_at,
+        o.delivered_at,
 
-                u.full_name AS seller_name,
+        o.created_at,
 
-                u.email AS seller_email,
+        o.updated_at,
 
-                u.phone AS seller_phone
+        u.full_name AS seller_name,
 
-            FROM orders o
+        u.email AS seller_email,
 
-            LEFT JOIN users u
-                ON u.id = o.seller_id
+        u.phone AS seller_phone
 
-            WHERE
-                o.reference_no = ?
+    FROM orders o
 
-            AND
-                o.customer_id = ?
+    LEFT JOIN users u
+        ON u.id = o.seller_id
 
-            LIMIT 1
+    WHERE
+        o.reference_no = ?
 
-            `,
+    AND
+        o.customer_id = ?
 
-            [
-                referenceNo,
-                customerId
-            ]
+    LIMIT 1
+    `,
 
-        );
+    [
+        referenceNo,
+        customerId
+    ]
 
+);
 
         /*
         ==========================================
@@ -2486,11 +2625,12 @@ async function getOrderDetails(
             WHERE order_id = ?
 
             ORDER BY id ASC
-
             `,
 
             [
+
                 order.id
+
             ]
 
         );
@@ -2504,148 +2644,165 @@ async function getOrderDetails(
 
         return res.status(200).json({
 
-            success: true,
+    success: true,
 
-            order: {
+    order: {
 
-                id:
-                    order.id,
+        id:
+            order.id,
 
-                referenceNo:
-                    order.reference_no,
+        referenceNo:
+            order.reference_no,
 
-                status:
-                    order.status,
+        status:
+            order.status,
 
-                customer: {
+        customer: {
+
+            id:
+                order.customer_id,
+
+            name:
+                order.customer_name,
+
+            phone:
+                order.customer_phone,
+
+            email:
+                order.customer_email
+
+        },
+
+        seller: {
+
+            id:
+                order.seller_id,
+
+            name:
+                order.seller_name,
+
+            email:
+                order.seller_email,
+
+            phone:
+                order.seller_phone
+
+        },
+
+        items:
+            items.map(
+                item => ({
 
                     id:
-                        order.customer_id,
+                        item.id,
 
-                    name:
-                        order.customer_name,
+                    orderId:
+                        item.order_id,
 
-                    phone:
-                        order.customer_phone,
+                    productId:
+                        item.product_id,
 
-                    email:
-                        order.customer_email
+                    productName:
+                        item.product_name,
 
-                },
+                    sku:
+                        item.sku,
 
-                seller: {
+                    quantity:
+                        Number(
+                            item.quantity
+                        ),
 
-                    id:
-                        order.seller_id,
+                    unit:
+                        item.unit,
 
-                    name:
-                        order.seller_name,
+                    unitPrice:
+                        Number(
+                            item.unit_price
+                        ),
 
-                    email:
-                        order.seller_email,
+                    subtotal:
+                        Number(
+                            item.subtotal
+                        ),
 
-                    phone:
-                        order.seller_phone
+                    createdAt:
+                        item.created_at
 
-                },
+                })
+            ),
 
-                items:
-                    items.map(
-                        item => ({
+        subtotal:
+            Number(
+                order.subtotal
+            ),
 
-                            id:
-                                item.id,
+        deliveryCharge:
+            Number(
+                order.delivery_charge
+            ),
 
-                            orderId:
-                                item.order_id,
+        totalAmount:
+            Number(
+                order.total_amount
+            ),
 
-                            productId:
-                                item.product_id,
+        delivery: {
 
-                            productName:
-                                item.product_name,
+            address:
+                order.delivery_address,
 
-                            sku:
-                                item.sku,
+            city:
+                order.delivery_city,
 
-                            quantity:
-                                Number(
-                                    item.quantity
-                                ),
+            state:
+                order.delivery_state,
 
-                            unit:
-                                item.unit,
+            pincode:
+                order.delivery_pincode
 
-                            unitPrice:
-                                Number(
-                                    item.unit_price
-                                ),
+        },
 
-                            subtotal:
-                                Number(
-                                    item.subtotal
-                                ),
+        otpVerified:
+            Boolean(
+                order.otp_verified
+            ),
 
-                            createdAt:
-                                item.created_at
+        /*
+        ==========================================
+        TIMESTAMPS
+        ==========================================
+        */
 
-                        })
-                    ),
+        createdAt:
+            order.created_at,
 
-                subtotal:
-                    Number(
-                        order.subtotal
-                    ),
+        sellerAcceptedAt:
+            order.seller_accepted_at,
 
-                deliveryCharge:
-                    Number(
-                        order.delivery_charge
-                    ),
+        processingAt:
+            order.processing_at,
 
-                totalAmount:
-                    Number(
-                        order.total_amount
-                    ),
+        shippedAt:
+            order.shipped_at,
 
-                delivery: {
+        deliveredAt:
+            order.delivered_at,
 
-                    address:
-                        order.delivery_address,
+        cancelledAt:
+            order.cancelled_at,
 
-                    city:
-                        order.delivery_city,
+        updatedAt:
+            order.updated_at
 
-                    state:
-                        order.delivery_state,
+    }
 
-                    pincode:
-                        order.delivery_pincode
-
-                },
-
-                otpVerified:
-                    Boolean(
-                        order.otp_verified
-                    ),
-
-                sellerAcceptedAt:
-                    order.seller_accepted_at,
-
-                cancelledAt:
-                    order.cancelled_at,
-
-                createdAt:
-                    order.created_at,
-
-                updatedAt:
-                    order.updated_at
-
-            }
-
-        });
+});
 
 
-    } catch (error) {
+    }
+
+    catch (error) {
 
         console.error(
             "GET ORDER DETAILS ERROR:",
@@ -3253,13 +3410,19 @@ await connection.execute(
 
                 o.otp_verified,
 
-                o.seller_accepted_at,
+               o.seller_accepted_at,
 
-                o.cancelled_at,
+o.processing_at,
 
-                o.created_at,
+o.shipped_at,
 
-                o.updated_at
+o.cancelled_at,
+
+o.delivered_at,
+
+o.created_at,
+
+o.updated_at
 
             FROM orders o
 
@@ -3446,16 +3609,25 @@ await connection.execute(
                     ),
 
                 sellerAcceptedAt:
-                    order.seller_accepted_at,
+    order.seller_accepted_at,
 
-                cancelledAt:
-                    order.cancelled_at,
+processingAt:
+    order.processing_at,
 
-                createdAt:
-                    order.created_at,
+shippedAt:
+    order.shipped_at,
 
-                updatedAt:
-                    order.updated_at
+deliveredAt:
+    order.delivered_at,
+
+cancelledAt:
+    order.cancelled_at,
+
+createdAt:
+    order.created_at,
+
+updatedAt:
+    order.updated_at
 
             }
 
