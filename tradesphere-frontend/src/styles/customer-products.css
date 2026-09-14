@@ -549,15 +549,6 @@
         0 20px 42px
         rgba(15,23,42,.10);
 }
-
-
-/* =========================================
-   IMAGE
-========================================= */
-/* =========================================
-   PRODUCT IMAGE AREA
-========================================= */
-
 .customer-product-image {
     position: relative;
 
@@ -756,47 +747,7 @@
 }
 
 
-.view-product-button {
-    width: 100%;
-
-    height: 40px;
-
-    margin-top: 11px;
-
-    border: 1px solid #e2e8f0;
-
-    border-radius: 9px;
-
-    background: white;
-
-    color: #334155;
-
-    font-family: inherit;
-
-    font-size: 9px;
-
-    font-weight: 800;
-
-    cursor: pointer;
-
-    transition: .2s ease;
-}
-
-
-.view-product-button:hover {
-    border-color: #0f172a;
-
-    background: #0f172a;
-
-    color: rgb(18, 17, 17);
-
-    transform: translateY(-1px);
-}
-
-
-/* =========================================
-   LOADING / EMPTY / ERROR
-========================================= */
+/* LOADING / EMPTY / ERROR*/
 
 .customer-products-loading {
     min-height: 300px;
@@ -1430,70 +1381,56 @@
     font-size: 14px;
 }
 
-.product-card-actions {
-    display: grid;
 
-    grid-template-columns:
-        1fr 1fr;
-
-    gap: 10px;
-
-    margin-top: 18px;
-}
-
-
-.view-product-button,
-.add-cart-button {
-    min-height: 28px;
-
-    border-radius: 12px;
-
-    font-size: 13px;
-    font-weight: 700;
-
-    cursor: pointer;
-
-    transition:
-        0.2s ease;
-}
+/* =================================================
+   CONTINUE SHOPPING BUTTON
+================================================= */
 
 .continue-button {
-    position: relative ;
-    z-index: 100 ;
+    position: relative;
+    z-index: 100;
 
-    pointer-events: auto ;
+    width: 180px;
+    min-width: 180px;
+    height: 48px;
 
-    
+    padding: 0 22px;
 
-    background: #111827;
-    color: #ffffff;
-
-     width: 295px;
-    height: 72px;
-    padding: 0 30px;
-    border: none;
-    border-radius: 18px;
-    font-size: 17px;
-    font-weight: 800;
     display: flex;
     align-items: center;
     justify-content: center;
+
+    box-sizing: border-box;
+
+    border: 1px solid #d0d5dd;
+    border-radius: 12px;
+
+    background: #ffffff;
+    color: #101828;
+
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 700;
+
+    white-space: nowrap;
 
     cursor: pointer;
 
     transition:
         transform 0.2s ease,
         background 0.2s ease,
+        color 0.2s ease,
         box-shadow 0.2s ease;
 }
 
 .continue-button:hover {
-    background: #1f2937;
+    background: #101828;
+    color: #f5f7fa;
 
     transform: translateY(-2px);
 
     box-shadow:
-        0 10px 25px rgba(15, 23, 42, 0.16);
+        0 8px 20px rgba(16, 24, 40, 0.10);
 }
 
 .continue-button:active {
@@ -1503,105 +1440,160 @@
 .continue-button:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+}/* =================================================
+   PRODUCT CARD ACTIONS
+================================================= */
+
+.product-card-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 10px;
+    margin-top: 18px;
+    width: 100%;
 }
+
+
+/* =================================================
+   VIEW + ADD TO CART COMMON STYLE
+================================================= */
+
+.view-product-button,
+.add-cart-button {
+    width: 100%;
+    height: 50px;
+    min-height: 50px;
+    min-width: 0;
+
+    padding: 0 12px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    box-sizing: border-box;
+
+    border-radius: 12px;
+
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 700;
+
+    line-height: 1;
+    white-space: nowrap;
+
+    cursor: pointer;
+
+    transition:
+        background 0.2s ease,
+        color 0.2s ease,
+        border-color 0.2s ease,
+        transform 0.2s ease,
+        box-shadow 0.2s ease;
+}
+
+
+/* =================================================
+   VIEW PRODUCT
+================================================= */
+
 .view-product-button {
-    border:
-        1px solid #dce4ef;
+    border: 1px solid #dce4ef;
 
     background: #ffffff;
-
     color: #16233b;
 }
 
-
 .view-product-button:hover {
     background: #f5f7fa;
+    border-color: #cbd5e1;
+
+    transform: translateY(-1px);
+
+    box-shadow:
+        0 6px 16px rgba(15, 23, 42, 0.08);
 }
 
 
+/* =================================================
+   ADD TO CART
+================================================= */
+
 .add-cart-button {
-    display: flex ;
-    width:50px ;
-    height:50px ;
-    align-items: center;
-    justify-content: center ;
-
-    gap: 7px ;
-
-    border:
-        1px solid #101828;
+    border: 1px solid #101828;
 
     background: #101828;
-
     color: #ffffff;
 }
 
-
 .add-cart-button:hover {
     background: #263248;
+    border-color: #263248;
+
+    transform: translateY(-1px);
+
+    box-shadow:
+        0 6px 16px rgba(15, 23, 42, 0.12);
 }
 
+
+/* =================================================
+   ADD TO CART DISABLED
+================================================= */
 
 .add-cart-button:disabled {
     opacity: 0.55;
-
     cursor: not-allowed;
+
+    transform: none;
+    box-shadow: none;
 }
 
+
+/* =================================================
+   IN CART STATE
+================================================= */
+
 .add-cart-button.added {
-    background: #ecfdf5;
+    background: #ffffff;
+
     color: #047857;
+
     border: 1px solid #a7f3d0;
 
     cursor: default;
 
-    box-shadow:
-        0 6px 18px
-        rgba(5, 150, 105, 0.10);
+    box-shadow: none;
 }
 
 .add-cart-button.added:hover {
+    background: #ffffff;
+
+    color: #047857;
+
+    border-color: #a7f3d0;
+
     transform: none;
-    background: #ecfdf5;
+
+    box-shadow: none;
 }
+
+
+/* Quantity text inside In Cart */
 
 .add-cart-button.added span {
+    display: inline;
+
+    margin: 0;
+
+    padding: 0;
+
+    color: #047857;
+
     font-size: 13px;
     font-weight: 700;
+
+    white-space: nowrap;
 }
-.continue-button {
-    width: 62px ;
-
-    height: 44px !important;
-    display:center;
-    padding: 0 20px;
-
-    border: 0;
-
-    border-radius: 14px;
-
-    background: whitesmoke;
-
-    color: #101828;
-    border:
-        0.2px solid #1018283f;
-
-    font-size: 14px;
-    font-weight: 700;
-
-    cursor: pointer;
-
-    box-shadow:
-        0 8px 20px
-        rgba(16, 24, 40, 0.15);
-}
-
-
-.continue-button:hover {
-    background: #263248;
-}
-
-
 /* =================================================
    CHECKOUT MODAL
 ================================================= */

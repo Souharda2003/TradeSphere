@@ -23,12 +23,6 @@ function Home() {
                     <strong>TradeSphere</strong>
                 </div>
 
-                <div className="nav-links">
-                    <a href="#products">Products</a>
-                    <a href="#business">Business</a>
-                    <a href="#about">About</a>
-                </div>
-
                 <div className="nav-actions">
 
                     <a

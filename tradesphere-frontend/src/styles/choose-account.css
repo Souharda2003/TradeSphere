@@ -884,48 +884,109 @@
     transition: .2s ease;
 }
 
-
 .checkout-button {
-    border: 1px solid #0f172a;
+    width: 100%;
+    min-height: 42px;
 
-    background: #0f172a;
+    padding: 0 24px;
 
-    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 
-    box-shadow:
-        0 8px 20px
-        rgba(15,23,42,.13);
+    box-sizing: border-box;
+
+    border: none;
+    border-radius: 14px;
+
+    background: #111827;
+    color: #ffffff;
+
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 700;
+
+    cursor: pointer;
+
+    transition:
+        transform 0.2s ease,
+        background 0.2s ease,
+        box-shadow 0.2s ease;
 }
-
 
 .checkout-button:hover {
-    transform: translateY(-2px);
+    background: #1f2937;
 
-    background: #1e293b;
+    transform: translateY(-1px);
 
     box-shadow:
-        0 13px 25px
-        rgba(15,23,42,.17);
+        0 8px 20px rgba(15, 23, 42, 0.15);
 }
 
+.checkout-button:active {
+    transform: translateY(0);
+}
+
+.checkout-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
 
 .continue-button {
-    margin-top: 8px;
+    position: relative;
+    z-index: 100;
 
-    border: 1px solid #e2e8f0;
+    width: 180px;
+    min-width: 180px;
+    height: 48px;
 
-    background: white;
+    padding: 0 22px;
 
-    color: #475569;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    box-sizing: border-box;
+
+    border: 1px solid #d0d5dd;
+    border-radius: 12px;
+
+    background: #ffffff;
+    color: #101828;
+
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 700;
+
+    white-space: nowrap;
+
+    cursor: pointer;
+
+    transition:
+        transform 0.2s ease,
+        background 0.2s ease,
+        color 0.2s ease,
+        box-shadow 0.2s ease;
 }
-
 
 .continue-button:hover {
-    border-color: #bfdbfe;
+    background: #101828;
+    color: #f5f7fa;
 
-    color: #2563eb;
+    transform: translateY(-2px);
+
+    box-shadow:
+        0 8px 20px rgba(16, 24, 40, 0.10);
 }
 
+.continue-button:active {
+    transform: translateY(0);
+}
+
+.continue-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
 
 /* =========================================
    EMPTY

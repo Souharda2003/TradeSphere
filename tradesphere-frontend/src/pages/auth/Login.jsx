@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+    Link,
     useNavigate
 } from "react-router-dom";
 import { motion } from "motion/react";
@@ -247,9 +248,9 @@ localStorage.setItem(
                                     Password
                                 </label>
 
-                                <a href="/forgot-password">
+                                <Link to="/forgot-password">
                                     Forgot password?
-                                </a>
+                                </Link>
 
                             </div>
 

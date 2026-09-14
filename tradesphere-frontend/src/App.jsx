@@ -20,7 +20,8 @@ import Register
 
 import ChooseAccount
     from "./pages/auth/ChooseAccount";
-
+import ForgotPassword
+    from "./pages/auth/ForgotPassword";
 
 // ==========================================
 // CUSTOMER PAGES
@@ -115,6 +116,12 @@ function App() {
                     }
                 />
 
+                <Route
+    path="/forgot-password"
+    element={
+        <ForgotPassword />
+    }
+/>
 
 
                 {/* =================================
