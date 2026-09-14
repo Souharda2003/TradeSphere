@@ -1,9 +1,15 @@
 const express = require("express");
 
 const {
+
     register,
+
     login,
-    chooseAccount
+
+    chooseAccount,
+
+    forgotPassword
+
 } = require(
     "../controllers/authController"
 );
@@ -13,11 +19,19 @@ const router =
     express.Router();
 
 
+// =====================================================
+// REGISTER
+// =====================================================
+
 router.post(
     "/register",
     register
 );
 
+
+// =====================================================
+// LOGIN
+// =====================================================
 
 router.post(
     "/login",
@@ -25,9 +39,23 @@ router.post(
 );
 
 
+// =====================================================
+// CHOOSE ACCOUNT
+// =====================================================
+
 router.post(
     "/choose-account",
     chooseAccount
+);
+
+
+// =====================================================
+// FORGOT PASSWORD
+// =====================================================
+
+router.post(
+    "/forgot-password",
+    forgotPassword
 );
 
 

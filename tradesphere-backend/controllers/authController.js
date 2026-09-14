@@ -893,6 +893,326 @@ async function chooseAccount(
     }
 }
 
+// =====================================================
+// FORGOT PASSWORD / RESET PASSWORD
+// =====================================================
+
+async function forgotPassword(req, res) {
+
+    try {
+
+        const {
+            phone,
+            role,
+            password
+        } = req.body;
+
+
+        // =================================================
+        // VALIDATION
+        // =================================================
+
+        if (
+            !phone ||
+            !role ||
+            !password
+        ) {
+
+            return res.status(400).json({
+
+                success: false,
+
+                message:
+                    "Phone number, account type and new password are required."
+
+            });
+
+        }
+
+
+        // =================================================
+        // NORMALIZE PHONE
+        // =================================================
+
+        const normalizedPhone =
+            String(phone)
+                .trim();
+
+
+        // =================================================
+        // NORMALIZE ROLE
+        // =================================================
+
+        const normalizedRole =
+            String(role)
+                .trim()
+                .toUpperCase();
+
+
+        // =================================================
+        // PHONE VALIDATION
+        // =================================================
+
+        if (
+            !/^\d{10}$/.test(
+                normalizedPhone
+            )
+        ) {
+
+            return res.status(400).json({
+
+                success: false,
+
+                message:
+                    "Phone number must contain exactly 10 digits."
+
+            });
+
+        }
+
+
+        // =================================================
+        // ROLE VALIDATION
+        // =================================================
+
+        if (
+            ![
+                "CUSTOMER",
+                "SELLER"
+            ].includes(
+                normalizedRole
+            )
+        ) {
+
+            return res.status(400).json({
+
+                success: false,
+
+                message:
+                    "Invalid account type."
+
+            });
+
+        }
+
+
+        // =================================================
+        // PASSWORD VALIDATION
+        // =================================================
+
+        if (
+            password.length < 8
+        ) {
+
+            return res.status(400).json({
+
+                success: false,
+
+                message:
+                    "Password must contain at least 8 characters."
+
+            });
+
+        }
+
+
+        // =================================================
+        // FIND ACTIVE USER
+        //
+        // IMPORTANT:
+        // PHONE + ROLE + ACTIVE = 1
+        //
+        // This prevents the JavaScript Number(active)
+        // problem and selects the exact account.
+        // =================================================
+
+        const [
+            users
+        ] = await pool.execute(
+
+            `
+            SELECT
+                id,
+                full_name,
+                phone,
+                role
+            FROM users
+            WHERE phone = ?
+            AND role = ?
+            AND active = 1
+            LIMIT 1
+            `,
+
+            [
+                normalizedPhone,
+                normalizedRole
+            ]
+
+        );
+
+
+        // =================================================
+        // USER NOT FOUND / INACTIVE
+        // =================================================
+
+        if (
+            users.length === 0
+        ) {
+
+            return res.status(404).json({
+
+                success: false,
+
+                message:
+                    "No active account found with this phone number and account type."
+
+            });
+
+        }
+
+
+        // =================================================
+        // EXACT USER
+        // =================================================
+
+        const user =
+            users[0];
+
+
+        console.log(
+            "FORGOT PASSWORD ACCOUNT:",
+            {
+                id: user.id,
+                phone: user.phone,
+                role: user.role
+            }
+        );
+
+
+        // =================================================
+        // HASH NEW PASSWORD
+        // =================================================
+
+        const hashedPassword =
+            await bcrypt.hash(
+                password,
+                12
+            );
+
+
+        // =================================================
+        // UPDATE PASSWORD
+        //
+        // Update ONLY the selected account.
+        // =================================================
+
+        const [
+            result
+        ] = await pool.execute(
+
+            `
+            UPDATE users
+            SET password = ?
+            WHERE id = ?
+            AND phone = ?
+            AND role = ?
+            AND active = 1
+            `,
+
+            [
+                hashedPassword,
+                user.id,
+                normalizedPhone,
+                normalizedRole
+            ]
+
+        );
+
+
+        // =================================================
+        // CHECK UPDATE
+        // =================================================
+
+        if (
+            result.affectedRows === 0
+        ) {
+
+            return res.status(500).json({
+
+                success: false,
+
+                message:
+                    "Password could not be updated."
+
+            });
+
+        }
+
+
+        // =================================================
+        // SUCCESS
+        // =================================================
+
+        return res.status(200).json({
+
+            success: true,
+
+            message:
+                "Password reset successfully.",
+
+            userId:
+                user.id
+
+        });
+
+
+    } catch (error) {
+
+        // =================================================
+        // ERROR LOG
+        // =================================================
+
+        console.error(
+            "===================================="
+        );
+
+        console.error(
+            "FORGOT PASSWORD ERROR"
+        );
+
+        console.error(
+            "Code:",
+            error.code
+        );
+
+        console.error(
+            "Message:",
+            error.message
+        );
+
+        console.error(
+            "SQL Message:",
+            error.sqlMessage
+        );
+
+        console.error(
+            "SQL:",
+            error.sql
+        );
+
+
+        return res.status(500).json({
+
+            success: false,
+
+            message:
+                "Unable to reset password."
+
+        });
+
+    }
+
+}
 
 // =====================================================
 // EXPORT
@@ -904,6 +1224,8 @@ module.exports = {
 
     login,
 
-    chooseAccount
+    chooseAccount,
+
+    forgotPassword
 
 };
